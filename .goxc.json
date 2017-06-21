@@ -1,0 +1,41 @@
+{
+	"Tasks": [
+		"default"
+	],
+	"TaskSettings": {
+		"publish-github": {
+			"body": "",
+			"owner": "Wikia",
+			"repository": "nsq-traefik-consumer"
+		},
+		"deb": {
+				"bin-dir": "/usr/bin",
+				"go-sources-dir": ".",
+				"metadata": {
+						"maintainer": "Wikia Core Platform Team",
+						"maintainerEmail": "platform-l@fandom.com"
+				},
+				"metadata-deb": {
+						"Build-Depends": "debhelper (\u003e=4.0.0), golang-go, gcc",
+						"Depends": ""
+				},
+				"other-mappped-files": {},
+				"rmtemp": true
+		}
+	},
+	"TasksExclude": [
+		"go-vet",
+		"go-test"
+	],
+	"BuildConstraints": "linux",
+	"BuildSettings": {
+		"LdFlagsXVars": {
+			"TimeNow": "github.com/Wikia/nsq-traefik-consumer/main.BuildTime",
+			"Version": "github.com/Wikia/nsq-traefik-consumer/main.Version"
+		},
+		"Tags": "important",
+		"ExtraArgs": ["-a"]
+	},
+	"PackageVersion": "0.0.1",
+	"ConfigVersion": "0.9"
+}

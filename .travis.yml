@@ -1,0 +1,44 @@
+sudo: false
+language: go
+matrix:
+  allow_failures:
+  - go: tip
+  include:
+  - go: 1.6.3
+  - go: 1.7.1
+    env: SEND_COVERAGE=0
+  - go: tip
+before_install:
+- go get github.com/mattn/goveralls
+- go get github.com/modocache/gover
+- go get github.com/laher/goxc
+install:
+- make prepare
+script:
+- if ([ "$SEND_COVERAGE" == "1" ]); then make test-cover; else make test; fi
+- make fmt-check
+- if ([ "$TRAVIS_GO_VERSION" != "1.5.4" ]); then make lint; fi
+- make vet
+before_deploy:
+- goxc
+after_success:
+- if ([ "$SEND_COVERAGE" == "1" ]); then gover && $HOME/gopath/bin/goveralls -service=travis-ci
+  -coverprofile=gover.coverprofile; fi
+os:
+- linux
+notifications:
+  email: false
+deploy:
+  provider: releases
+  api_key:
+    secure: n33BilPr0HYdPpBIfo6qtTKgtPkkD/Qdp4ugnupYfGG1X+37v3hl5m4QkeNZgdurF4PktSB/PRTOG5c2Qf91ivMoq/9sUCB9ihSZLnFhvkiigB15IgEahQ+XwuRPtJhhZ4JhiJBAs7IJ7F8RZYpj9mJO7hSeQDhBGOIyquCLU63t1QR55SYy88lDgXx/TccP7zpyqSCgNNRkpQceHm8PnZ+/Lh0QcTIs7YRqy0vR/XWYykBlG+NSYmXnn7MxUZ3juGVGV3MxCiex6t2FuPoWoB4nVRylG+PwAOyHAL4eMXHnq/O8sGnhIpNiBZdC3mIwBKxEElXhDQtJPjfNvk7X2ImfAtcG9XU8TD0a9yTJn/gkBar8FGTj5KyD8XgLxtG0SE4H7oBEIhIna/3grrBa05gcxvjaEXo6FdL86sfQ966QNa4y7w3GFZ2HIq0PCOOl9ShhTHHhJ1fFMEbQKVxToijycPVVPx34kyePxfBgkTdhX6UsiKs5Q/xOXQB6yPzb9PdiUUFvX7ia0ezdSDht02QAiomFGM7AoByj1Fl28BMCWFv4x/KSvP80BGnC6uNcm8Im58J+2nbfUbRBnw+ej1jKS3hYqOZW6qCfMiyjRz31cDSKsaP44S49UFdfk+F4E+rAgHZORs7JYG10J0j+dRF3T5zx/66Egeu/hpWDA3M=
+  file_glob: true
+  file:
+  - "$HOME/gopath/bin/nsq-traefik-consumer/*/nsq-traefik-consumer_*.tar.gz"
+  - "$HOME/gopath/bin/nsq-traefik-consumer/*/nsq-traefik-consumer_*.deb"
+  skip_cleanup: true
+  on:
+    branch: master
+    tags: true
+    go: 1.7.1
+    repo: Wikia/nsq-traefik-consumer

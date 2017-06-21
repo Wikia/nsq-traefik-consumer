@@ -1,0 +1,1 @@
+package nsq_traefik_consumer
