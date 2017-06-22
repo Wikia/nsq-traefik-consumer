@@ -46,6 +46,7 @@ func Execute() {
 }
 
 func init() {
+	viper.SetDefault("LogLevel", "info")
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.nsq-traefik-consumer.yaml)")
@@ -55,6 +56,7 @@ func init() {
 func initConfig() {
 	viper.SetConfigName(".nsq-traefik-consumer") // name of config file (without extension)
 	viper.AddConfigPath("$HOME")                 // adding home directory as first search path
+	viper.AddConfigPath(".")                     // adding home directory as first search path
 	viper.AutomaticEnv()                         // read in environment variables that match
 
 	if cfgFile != "" { // enable ability to specify config file via flag
@@ -66,5 +68,14 @@ func initConfig() {
 		log.WithError(err).Error("Error loading config file")
 	} else {
 		log.Infof("Using config file: %s", viper.ConfigFileUsed())
+	}
+
+	level, err := log.ParseLevel(viper.GetString("LogLevel"))
+
+	if err != nil {
+		log.WithError(err).Error("Error parsing LogLevel - setting to Info")
+		log.SetLevel(log.InfoLevel)
+	} else {
+		log.SetLevel(level)
 	}
 }

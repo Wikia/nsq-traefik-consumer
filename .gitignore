@@ -24,4 +24,5 @@ _testmain.go
 *.prof
 
 # binaries
+.nsq-traefik-consumer.yaml
 bin/
