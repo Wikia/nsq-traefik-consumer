@@ -3,7 +3,7 @@ package common_test
 import (
 	"time"
 
-	. "github.com/Wikia/continuous-deployment-poc/common"
+	. "github.com/Wikia/nsq-traefik-consumer/common"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

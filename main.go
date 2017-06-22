@@ -15,8 +15,8 @@
 package main
 
 import (
-	"github.com/Wikia/helios/common"
 	"github.com/Wikia/nsq-traefik-consumer/cmd"
+	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/spf13/viper"
 )
 
