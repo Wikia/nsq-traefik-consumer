@@ -12,16 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
-	"github.com/Wikia/helios/common"
-	"github.com/Wikia/nsq-traefik-consumer/cmd"
-	"github.com/spf13/viper"
+	"fmt"
+
+	"github.com/Wikia/nsq-traefik-consumer/common"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	viper.Set("version", common.GetCurrentVersion())
+// versionCmd represents the version command
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Returns current version of the program",
+	Long:  ``,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(common.GetCurrentVersion())
+	},
+}
 
-	cmd.Execute()
+func init() {
+	RootCmd.AddCommand(versionCmd)
 }
