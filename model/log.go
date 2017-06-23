@@ -6,11 +6,16 @@ type DockerMeta struct {
 	ContainerId string `json:"container_id"`
 }
 
+type GenericInfluxAnnotation struct {
+	ContainerName string `json:"container_name"`
+	MetricsType   string `json:"type"`
+}
+
 type KubernetesMeta struct {
 	NamespaceName string            `json:"namespace_name"`
 	PodName       string            `json:"pod_name"`
 	PodId         string            `json:"pod_id"`
-	Labels        map[string]string `json:"labesl"`
+	Labels        map[string]string `json:"labels"`
 	Host          string            `json:"host"`
 	Annotations   map[string]string `json:"annotations"`
 	ContainerName string            `json:"container_name"`

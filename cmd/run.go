@@ -19,6 +19,7 @@ import (
 	"github.com/Wikia/nsq-traefik-consumer/queue"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/Wikia/nsq-traefik-consumer/common"
 )
 
 // runCmd represents the run command
@@ -27,10 +28,10 @@ var runCmd = &cobra.Command{
 	Short: "starts consuming messages",
 	Long:  `Connects to a NSQ queue and starts processing messages.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		config := queue.NewConfig()
-		err := viper.UnmarshalKey("Nsq", &config)
+		config := common.NewConfig()
+		err := viper.Unmarshal(&config)
 		if err != nil {
-			log.WithError(err).Errorf("Error parsing config for NSQ")
+			log.WithError(err).Errorf("Error parsing config")
 		}
 		queue.Consume(config)
 	},
