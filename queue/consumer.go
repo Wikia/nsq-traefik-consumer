@@ -55,13 +55,13 @@ func metricsProcessor(config common.KuberenetesConfig) nsq.HandlerFunc {
 				return nil
 			}
 
-			k8sConfig, has := wikiaConfig["influx_metrics"]
+			_, has = wikiaConfig["influx_metrics"]
 			if !has {
 				log.WithField("annotation", value).Info("Skipping message - no metrics config found")
 				return nil
 			}
 
-			metricConfig := k8sConfig.(model.GenericInfluxAnnotation)
+			//metricConfig := k8sConfig.(model.GenericInfluxAnnotation)
 		}
 
 		return nil
