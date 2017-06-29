@@ -55,13 +55,13 @@ func metricsProcessor(config common.KuberenetesConfig) nsq.HandlerFunc {
 				return nil
 			}
 
-			metricConfig, has := wikiaConfig["influx_metrics"]
+			k8sConfig, has := wikiaConfig["influx_metrics"]
 			if !has {
-				log.WithField("anno", value).Info("No metrics config found - skippig")
+				log.WithField("annotation", value).Info("Skipping message - no metrics config found")
 				return nil
 			}
 
-			log.WithField("config", metricConfig.(model.GenericInfluxAnnotation)).Info("Good")
+			metricConfig := k8sConfig.(model.GenericInfluxAnnotation)
 		}
 
 		return nil
@@ -92,6 +92,7 @@ func Consume(config common.Config) error {
 	if err != nil {
 		log.WithField("address", config.Nsq.Address).Panic("Could not connect")
 	}
+
 	defer consumer.DisconnectFromNSQLookupd(config.Nsq.Address)
 
 	for {

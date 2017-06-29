@@ -27,7 +27,7 @@ type TraefikLog struct {
 	Time                  time.Time      `json:"time"`
 	Docker                DockerMeta     `json:"docker"`
 	Kubernetes            KubernetesMeta `json:"kubernetes"`
-	Datacenter            string         `json:"datacenter"`
-	KubernetesClusterName string         `json:"kubernetes_cluster_name"`
+	Datacenter            string         `json:"datacenter,omitempty"`
+	KubernetesClusterName string         `json:"kubernetes_cluster_name,omitempty"`
 	Ts                    uint64         `json:"_ts"`
 }
