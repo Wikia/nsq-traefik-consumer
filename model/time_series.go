@@ -23,12 +23,12 @@ func (tb TimeBucket) Len() int {
 	return len(tb.items)
 }
 
-func (tb TimeBucket) Clone() TimeBucket {
+func (tb TimeBucket) Clone() *TimeBucket {
 	res := TimeBucket{start: tb.start, end: tb.end}
 	res.items = make([]TimePoint, len(tb.items))
 	copy(res.items, tb.items)
 
-	return res
+	return &res
 }
 
 func (tb *TimeBucket) Append(pt TimePoint) error {
@@ -48,23 +48,19 @@ func (tb *TimeBucket) Append(pt TimePoint) error {
 	return nil
 }
 
-func (tb TimeBucket) Iter() <-chan TimePoint {
-	c := make(chan TimePoint)
+func (tb TimeBucket) Iter() func() (TimePoint, bool) {
+	i := -1
 
-	f := func() {
+	return func() (TimePoint, bool) {
 		tb.Lock()
 		defer tb.Unlock()
-
-		for _, value := range tb.items {
-			c <- value.Clone()
+		i++
+		if i == len(tb.items) {
+			return nil, false
 		}
 
-		close(c)
+		return tb.items[i], true
 	}
-
-	go f()
-
-	return c
 }
 
 type TimeSeries struct {
@@ -152,23 +148,18 @@ func (ts *TimeSeries) Append(tp TimePoint) error {
 	return ts.data[bucketIdx].Append(tp)
 }
 
-func (ts TimeSeries) Iter() <-chan TimeBucket {
-	c := make(chan TimeBucket)
+func (ts TimeSeries) Iter() func() (*TimeBucket, bool) {
+	i := -1
 
-	f := func() {
+	return func() (*TimeBucket, bool) {
 		ts.Lock()
 		defer ts.Unlock()
-
-		for _, value := range ts.data {
-			c <- value.Clone()
+		i++
+		if i == len(ts.data) {
+			return nil, false
 		}
-
-		close(c)
+		return &ts.data[i], true
 	}
-
-	go f()
-
-	return c
 }
 
 type TimePoint interface {

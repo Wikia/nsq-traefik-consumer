@@ -26,11 +26,14 @@ var _ = Describe("TimeSeries", func() {
 		Expect(err).NotTo(HaveOccurred(), "Successfully added TimePoint")
 		Expect(ts.GetBucketCount()).To(Equal(1), "Bucket count should increase by 1")
 
-		for bucket := range ts.Iter() {
+		bucketIter := ts.Iter()
+		for bucket, ok := bucketIter(); ok; bucket, ok = bucketIter() {
 			Expect(bucket.IsEmpty()).To(BeFalse())
 			Expect(bucket.Len()).To(Equal(1))
-			for item := range bucket.Iter() {
-				Expect(item).To(BeEquivalentTo(&pt))
+
+			timePointIter := bucket.Iter()
+			for timePoint, ok := timePointIter(); ok; timePoint, ok = timePointIter() {
+				Expect(timePoint).To(BeEquivalentTo(&pt))
 			}
 		}
 	})
@@ -60,6 +63,12 @@ var _ = Describe("TimeSeries", func() {
 		Expect(err).NotTo(HaveOccurred(), "Successfully added #5 TimePoint")
 
 		Expect(ts.GetBucketCount()).To(Equal(3), "There should be exactly 3 buckets")
+
+		pt6 := NewTimePointUInt64(startTime.Add(101*time.Second), 6)
+		err = ts.Append(&pt6)
+		Expect(err).NotTo(HaveOccurred(), "Successfully added #6 TimePoint")
+
+		Expect(ts.GetBucketCount()).To(Equal(11), "There should be exactly 11 buckets")
 
 	})
 })
