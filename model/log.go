@@ -7,8 +7,8 @@ type DockerMeta struct {
 }
 
 type GenericInfluxAnnotation struct {
-	ContainerName string `json:"container_name"`
-	MetricsType   string `json:"type"`
+	ContainerName string `mapstructure:"container_name"`
+	MetricsType   string `mapstructure:"type"`
 }
 
 type KubernetesMeta struct {

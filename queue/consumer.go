@@ -9,9 +9,15 @@ import (
 
 	"encoding/json"
 
+	"time"
+
+	"strings"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
+	"github.com/Wikia/nsq-traefik-consumer/metrics"
 	"github.com/Wikia/nsq-traefik-consumer/model"
+	"github.com/mitchellh/mapstructure"
 	"github.com/nsqio/go-nsq"
 )
 
@@ -28,6 +34,9 @@ func NewConsumer(config common.NsqConfig) (*nsq.Consumer, error) {
 }
 
 func metricsProcessor(config common.KuberenetesConfig) nsq.HandlerFunc {
+	processor := metrics.TraefikMetricProcessor{}
+	series := model.NewTimeSeries(10 * time.Second)
+
 	return func(message *nsq.Message) error {
 		log.WithField("message", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
 		entry := model.TraefikLog{}
@@ -35,6 +44,7 @@ func metricsProcessor(config common.KuberenetesConfig) nsq.HandlerFunc {
 		if err != nil {
 			log.WithError(err).WithField("body", string(message.Body)).Errorf("Error unmarshaling message")
 		} else {
+			entry.Log = strings.TrimSpace(entry.Log)
 			value, has := entry.Kubernetes.Annotations[config.AnnotationKey]
 			if err != nil {
 				log.WithError(err).Errorf("Error getting annotation")
@@ -55,13 +65,38 @@ func metricsProcessor(config common.KuberenetesConfig) nsq.HandlerFunc {
 				return nil
 			}
 
-			_, has = wikiaConfig["influx_metrics"]
+			k8sConfig, has := wikiaConfig["influx_metrics"]
 			if !has {
 				log.WithField("annotation", value).Info("Skipping message - no metrics config found")
 				return nil
 			}
 
-			//metricConfig := k8sConfig.(model.GenericInfluxAnnotation)
+			var metricConfig model.GenericInfluxAnnotation
+			err = mapstructure.Decode(k8sConfig, &metricConfig)
+
+			if err != nil {
+				log.WithError(err).Error("Could not unmarshal metrics config")
+				return nil
+			}
+
+			if entry.Kubernetes.ContainerName != metricConfig.ContainerName {
+				log.WithField("container_name", entry.Kubernetes.ContainerName).Info("Skipping message - container not configured for metrics")
+				return nil
+			}
+
+			points, err := processor.Process(entry)
+
+			if err != nil {
+				log.WithError(err).Error("Error processing metrics")
+			}
+
+			for _, point := range points {
+				err := series.Append(point)
+
+				if err != nil {
+					log.WithError(err).Error("Could not add point to Time Serie")
+				}
+			}
 		}
 
 		return nil
