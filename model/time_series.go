@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type TimeBucket struct {
@@ -17,8 +19,25 @@ func (tb TimeBucket) IsEmpty() bool {
 	return len(tb.items) == 0
 }
 
+func (tb TimeBucket) Len() int {
+	return len(tb.items)
+}
+
+func (tb TimeBucket) Clone() TimeBucket {
+	res := TimeBucket{start: tb.start, end: tb.end}
+	res.items = make([]TimePoint, len(tb.items))
+	copy(res.items, tb.items)
+
+	return res
+}
+
 func (tb *TimeBucket) Append(pt TimePoint) error {
 	if pt.Ts().Before(tb.start) || pt.Ts().After(tb.end) {
+		log.WithFields(log.Fields{
+			"start": tb.start,
+			"end":   tb.end,
+			"point": pt.Ts(),
+		}).Error("Time point is out of boundaries")
 		return fmt.Errorf("Time point is out of bucket boundaries")
 	}
 
@@ -29,7 +48,7 @@ func (tb *TimeBucket) Append(pt TimePoint) error {
 	return nil
 }
 
-func (tb *TimeBucket) Iter() <-chan TimePoint {
+func (tb TimeBucket) Iter() <-chan TimePoint {
 	c := make(chan TimePoint)
 
 	f := func() {
@@ -99,12 +118,21 @@ func (ts *TimeSeries) Trim(start, end time.Time) uint64 {
 	return bucketsDeleted
 }
 
+func (ts TimeSeries) alignTime(val time.Time) time.Time {
+	aligned := val.Round(ts.resolution)
+	if aligned.After(val) {
+		aligned = aligned.Add(-ts.resolution)
+	}
+
+	return aligned
+}
+
 func (ts *TimeSeries) Append(tp TimePoint) error {
 	ts.Lock()
 	defer ts.Unlock()
 
 	if ts.start.IsZero() {
-		ts.start = tp.Ts()
+		ts.start = ts.alignTime(tp.Ts())
 	}
 
 	bucketIdx := ts.calculateBucketIdx(tp.Ts())
@@ -116,12 +144,31 @@ func (ts *TimeSeries) Append(tp TimePoint) error {
 	}
 
 	if ts.data[bucketIdx].IsEmpty() {
-		epochStart := tp.Ts().Round(ts.resolution)
+		epochStart := ts.alignTime(tp.Ts())
 		ts.data[bucketIdx].start = epochStart
 		ts.data[bucketIdx].end = epochStart.Add(ts.resolution)
 	}
 
 	return ts.data[bucketIdx].Append(tp)
+}
+
+func (ts TimeSeries) Iter() <-chan TimeBucket {
+	c := make(chan TimeBucket)
+
+	f := func() {
+		ts.Lock()
+		defer ts.Unlock()
+
+		for _, value := range ts.data {
+			c <- value.Clone()
+		}
+
+		close(c)
+	}
+
+	go f()
+
+	return c
 }
 
 type TimePoint interface {

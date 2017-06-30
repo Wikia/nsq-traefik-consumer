@@ -25,5 +25,13 @@ var _ = Describe("TimeSeries", func() {
 
 		Expect(err).NotTo(HaveOccurred(), "Successfully added TimePoint")
 		Expect(ts.GetBucketCount()).To(Equal(1), "Bucket count should increase by 1")
+
+		for bucket := range ts.Iter() {
+			Expect(bucket.IsEmpty()).To(BeFalse())
+			Expect(bucket.Len()).To(Equal(1))
+			for item := range bucket.Iter() {
+				Expect(item).To(BeEquivalentTo(&pt))
+			}
+		}
 	})
 })
