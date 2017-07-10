@@ -9,14 +9,22 @@ type NsqConfig struct {
 	ClientConfig *nsq.Config
 }
 
-type KuberenetesConfig struct {
+type KubernetesConfig struct {
 	AnnotationKey string
+}
+
+type RulesConfig struct {
+	Id             string
+	UrlRegexp      string
+	FrontendRegexp string
+	Sampling       float64
 }
 
 type Config struct {
 	Nsq        NsqConfig
 	LogLevel   string
-	Kubernetes KuberenetesConfig
+	Kubernetes KubernetesConfig
+	Rules      []RulesConfig
 }
 
 func NewConfig() Config {

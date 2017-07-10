@@ -162,10 +162,22 @@ func (ts TimeSeries) Iter() func() (*TimeBucket, bool) {
 	}
 }
 
+type MetricsBuffer struct {
+	Metrics map[string]PointGroup
+	sync.RWMutex
+}
+
+type PointGroup struct {
+	Points      []TimePoint
+	ExtraValues map[string]string
+	Tags        map[string]string
+}
+
 type TimePoint interface {
 	Ts() time.Time
 	SetTs(time.Time)
 	Clone() TimePoint
+	String() string
 }
 
 type TimePointUInt64 struct {
@@ -173,12 +185,29 @@ type TimePointUInt64 struct {
 	ts time.Time
 }
 
-func NewTimePointUInt64(ts time.Time, val uint64) TimePointUInt64 {
-	return TimePointUInt64{v: val, ts: ts}
+func NewTimePointUInt64(ts time.Time, val uint64) *TimePointUInt64 {
+	return &TimePointUInt64{v: val, ts: ts}
 }
 
 func (tp *TimePointUInt64) Ts() time.Time       { return tp.ts }
 func (tp *TimePointUInt64) SetTs(ts time.Time)  { tp.ts = ts }
 func (tp *TimePointUInt64) Value() uint64       { return tp.v }
 func (tp *TimePointUInt64) SetValue(val uint64) { tp.v = val }
-func (tp TimePointUInt64) Clone() TimePoint     { pt := NewTimePointUInt64(tp.ts, tp.v); return &pt }
+func (tp *TimePointUInt64) String() string      { return fmt.Sprintf("%d", tp.v) }
+func (tp TimePointUInt64) Clone() TimePoint     { return NewTimePointUInt64(tp.ts, tp.v) }
+
+type TimePointFloat64 struct {
+	v  float64
+	ts time.Time
+}
+
+func NewTimePointFloat64(ts time.Time, val float64) *TimePointFloat64 {
+	return &TimePointFloat64{v: val, ts: ts}
+}
+
+func (tp *TimePointFloat64) Ts() time.Time        { return tp.ts }
+func (tp *TimePointFloat64) SetTs(ts time.Time)   { tp.ts = ts }
+func (tp *TimePointFloat64) Value() float64       { return tp.v }
+func (tp *TimePointFloat64) SetValue(val float64) { tp.v = val }
+func (tp *TimePointFloat64) String() string       { return fmt.Sprintf("%g", tp.v) }
+func (tp TimePointFloat64) Clone() TimePoint      { return NewTimePointFloat64(tp.ts, tp.v) }
