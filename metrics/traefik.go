@@ -91,7 +91,7 @@ func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values ma
 	}
 
 	m["request_count"] = integer
-	m["request_method"] = values["request_method"]
+	m["request_method"] = values["method"]
 
 	return m, nil
 }

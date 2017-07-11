@@ -18,12 +18,13 @@ type KubernetesConfig struct {
 }
 
 type InfluxDbConfig struct {
-	Address      string
-	Username     string
-	Password     string
-	Database     string
-	Measurement  string
-	SendInterval time.Duration
+	Address         string
+	Username        string
+	Password        string
+	Database        string
+	Measurement     string
+	RetentionPolicy string
+	SendInterval    time.Duration
 }
 
 type RulesConfig struct {
