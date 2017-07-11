@@ -64,10 +64,19 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 		return err
 	}
 
-	metrics.Lock()
-	defer metrics.Unlock()
 	cnt := 0
-	for _, bucket := range metrics.Metrics {
+	curCnt := 0
+	for {
+		if len(metrics.Metrics) == 0 {
+			break
+		}
+
+		var bucket client.BatchPoints
+
+		metrics.Lock()
+		bucket, metrics.Metrics = metrics.Metrics[0], metrics.Metrics[1:]
+		metrics.Unlock()
+
 		bucket.SetDatabase(config.Database)
 		bucket.SetPrecision("s")
 		bucket.SetRetentionPolicy(config.RetentionPolicy)
@@ -76,7 +85,13 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 		if err != nil {
 			log.WithError(err).Error("Error sending metrics to Influx DB")
 		}
-		cnt += len(bucket.Points())
+		curCnt = len(bucket.Points())
+		cnt += curCnt
+
+		log.WithFields(log.Fields{
+			"count":        cnt,
+			"buckets_left": len(metrics.Metrics),
+		}).Info("Wrote metrics to InfluxDB")
 	}
 
 	log.WithField("count", cnt).Info("Finished writing metrics to InfluxDB")

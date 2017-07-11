@@ -89,9 +89,10 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 
 			if err != nil {
 				log.WithError(err).Error("Error processing metrics")
+				return nil
 			}
 
-			log.WithField("metrics", processedMetrics).Debug("Gathered metrics")
+			log.WithField("metrics_cnt", len(processedMetrics.Points())).Debug("Gathered metrics")
 
 			metricsBuffer.Lock()
 			metricsBuffer.Metrics = append(metricsBuffer.Metrics, processedMetrics)

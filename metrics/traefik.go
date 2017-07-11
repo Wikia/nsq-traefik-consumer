@@ -111,7 +111,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, measurement str
 			"entry":       entry.Log,
 		}).Error("Error matching Traefik log")
 
-		return result, fmt.Errorf("Error matching Traefik log")
+		return nil, fmt.Errorf("Error matching Traefik log")
 	}
 
 	for idx, name := range ApacheCombinedLogRegex.SubexpNames() {
@@ -126,7 +126,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, measurement str
 	if err != nil {
 		log.WithError(err).WithField("entry", entry).Error("Error parsing timestamp for log entry")
 
-		return result, fmt.Errorf("Error parsing timestamp for log entry")
+		return nil, fmt.Errorf("Error parsing timestamp for log entry")
 	}
 
 	// filtering and rule processing
