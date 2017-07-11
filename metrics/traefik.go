@@ -91,7 +91,22 @@ func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values ma
 	}
 
 	m["request_count"] = integer
+
+	// content size
+	integer, err = strconv.ParseInt(values["content_size"], 10, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	m["response_size"] = integer
+
+	m["backend_url"] = values["backend_url"]
 	m["request_method"] = values["method"]
+	m["client_username"] = values["username"]
+	m["http_referer"] = values["referer"]
+	m["http_user_agent"] = values["useragent"]
+	m["request_url"] = values["path"]
 
 	return m, nil
 }
