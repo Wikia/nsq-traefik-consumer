@@ -20,9 +20,9 @@ import (
 type RuleFilter func(model.TraefikLog) bool
 
 type ProcessRule struct {
-	Id             string
-	FrontendRegexp *regexp.Regexp
-	Filter         RuleFilter
+	Id         string
+	PathRegexp *regexp.Regexp
+	Filter     RuleFilter
 }
 
 type TraefikMetricProcessor struct {
@@ -36,13 +36,15 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 		rule := ProcessRule{}
 		rule.Id = cfg.Id
 
-		rxp, err := regexp.Compile(cfg.FrontendRegexp)
-		if err != nil {
-			return nil, err
+		if len(cfg.UrlRegexp) > 0 {
+			rxp, err := regexp.Compile(cfg.UrlRegexp)
+			if err != nil {
+				return nil, err
+			}
+			rule.PathRegexp = rxp
 		}
-		rule.FrontendRegexp = rxp
 
-		rxp, err = regexp.Compile(cfg.UrlRegexp)
+		rxp, err := regexp.Compile(cfg.FrontendRegexp)
 		if err != nil {
 			return nil, err
 		}
@@ -146,11 +148,11 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, measurement str
 
 	// filtering and rule processing
 	for rxp, rule := range mp.Rules {
-		if !rule.FrontendRegexp.MatchString(mappedMatches["frontend_name"]) {
+		if !rxp.MatchString(mappedMatches["frontend_name"]) {
 			continue
 		}
 
-		if !rxp.MatchString(mappedMatches["path"]) {
+		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(mappedMatches["path"]) {
 			continue
 		}
 
