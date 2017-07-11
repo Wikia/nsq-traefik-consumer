@@ -9,9 +9,12 @@ import (
 
 	"strconv"
 
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/Wikia/nsq-traefik-consumer/model"
+	"github.com/influxdata/influxdb/client/v2"
 )
 
 type RuleFilter func(model.TraefikLog) bool
@@ -59,42 +62,47 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 	return &mp, nil
 }
 
-func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values map[string]string) map[string]model.TimePoint {
-	group := map[string]model.TimePoint{}
+func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values map[string]string) (map[string]interface{}, error) {
+	m := map[string]interface{}{}
 
 	// status codes
 	integer, err := strconv.ParseInt(values["status"], 10, 64)
 
 	if err != nil {
-		log.WithError(err).WithField("value", values["status"]).Error("Error parsing status code value as integer")
-	} else {
-		group["response_code"] = model.NewTimePointUInt64(logEntry.Time, uint64(integer))
+		return nil, err
 	}
+
+	m["response_code"] = integer
 
 	// response time
 	integer, err = strconv.ParseInt(values["request_time"], 10, 64)
 
 	if err != nil {
 		log.WithError(err).WithField("value", values["request_time"]).Error("Error parsing request time value as integer")
-	} else {
-		group["request_time"] = model.NewTimePointUInt64(logEntry.Time, uint64(integer))
 	}
+
+	m["request_time"] = integer
 
 	// request count
 	integer, err = strconv.ParseInt(values["request_count"], 10, 64)
 
 	if err != nil {
-		log.WithError(err).WithField("value", values["request_count"]).Error("Error parsing request count value as integer")
-	} else {
-		group["request_count"] = model.NewTimePointUInt64(logEntry.Time, uint64(integer))
+		return nil, err
 	}
 
-	return group
+	m["request_count"] = integer
+	m["request_method"] = values["request_method"]
+
+	return m, nil
 }
 
-func (mp TraefikMetricProcessor) Process(entry model.TraefikLog) (model.MetricsBuffer, error) {
+func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, measurement string) (client.BatchPoints, error) {
+	result, err := client.NewBatchPoints(client.BatchPointsConfig{})
+	if err != nil {
+		return nil, err
+	}
+
 	matches := ApacheCombinedLogRegex.FindStringSubmatch(entry.Log)
-	metrics := model.MetricsBuffer{}
 	mappedMatches := map[string]string{}
 
 	if len(matches) != 15 {
@@ -103,7 +111,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog) (model.MetricsB
 			"entry":       entry.Log,
 		}).Error("Error matching Traefik log")
 
-		return metrics, fmt.Errorf("Error matching Traefik log")
+		return result, fmt.Errorf("Error matching Traefik log")
 	}
 
 	for idx, name := range ApacheCombinedLogRegex.SubexpNames() {
@@ -111,6 +119,14 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog) (model.MetricsB
 			continue
 		}
 		mappedMatches[name] = matches[idx]
+	}
+
+	timestamp, err := time.Parse("02/Jan/2006:15:04:05 -0700", mappedMatches["timestamp"])
+
+	if err != nil {
+		log.WithError(err).WithField("entry", entry).Error("Error parsing timestamp for log entry")
+
+		return result, fmt.Errorf("Error parsing timestamp for log entry")
 	}
 
 	// filtering and rule processing
@@ -127,31 +143,27 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog) (model.MetricsB
 			continue
 		}
 
-		groupedPoints := mp.getMetrics(entry, mappedMatches)
+		metrics, err := mp.getMetrics(entry, mappedMatches)
+		if err != nil {
+			log.WithError(err).WithField("entry", entry).Error("Error processing log")
+			continue
+		}
+
 		tags := map[string]string{
 			"frontend_name": mappedMatches["frontend_name"],
 			"host_name":     entry.Kubernetes.Host,
 			"cluster_name":  entry.KubernetesClusterName,
 			"data_center":   entry.Datacenter,
 		}
-		commonValues := map[string]string{
-			"request_method": mappedMatches["method"],
+
+		pt, err := client.NewPoint(measurement, tags, metrics, timestamp)
+		if err != nil {
+			log.WithError(err).Error("Error creating time point from log entry")
+			continue
 		}
 
-		for name, point := range groupedPoints {
-			group, has := metrics.Metrics[name]
-
-			if !has {
-				group = model.PointGroup{
-					Points:      []model.TimePoint{},
-					Tags:        tags,
-					ExtraValues: commonValues,
-				}
-			}
-
-			group.Points = append(group.Points, point)
-		}
+		result.AddPoint(pt)
 	}
 
-	return metrics, nil
+	return result, nil
 }

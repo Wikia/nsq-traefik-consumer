@@ -16,10 +16,10 @@ package cmd
 
 import (
 	log "github.com/Sirupsen/logrus"
+	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/Wikia/nsq-traefik-consumer/queue"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/Wikia/nsq-traefik-consumer/common"
 )
 
 // runCmd represents the run command
@@ -33,7 +33,9 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			log.WithError(err).Errorf("Error parsing config")
 		}
-		queue.Consume(config)
+		buffer := queue.NewMetricsBuffer()
+		queue.RunSender(config.InfluxDB, &buffer)
+		queue.Consume(config, &buffer)
 	},
 }
 

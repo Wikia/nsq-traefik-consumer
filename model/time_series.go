@@ -162,11 +162,6 @@ func (ts TimeSeries) Iter() func() (*TimeBucket, bool) {
 	}
 }
 
-type MetricsBuffer struct {
-	Metrics map[string]PointGroup
-	sync.RWMutex
-}
-
 type PointGroup struct {
 	Points      []TimePoint
 	ExtraValues map[string]string

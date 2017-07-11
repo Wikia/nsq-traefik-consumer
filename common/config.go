@@ -1,6 +1,10 @@
 package common
 
-import "github.com/nsqio/go-nsq"
+import (
+	"time"
+
+	"github.com/nsqio/go-nsq"
+)
 
 type NsqConfig struct {
 	Address      string
@@ -11,6 +15,15 @@ type NsqConfig struct {
 
 type KubernetesConfig struct {
 	AnnotationKey string
+}
+
+type InfluxDbConfig struct {
+	Address      string
+	Username     string
+	Password     string
+	Database     string
+	Measurement  string
+	SendInterval time.Duration
 }
 
 type RulesConfig struct {
@@ -24,6 +37,7 @@ type Config struct {
 	Nsq        NsqConfig
 	LogLevel   string
 	Kubernetes KubernetesConfig
+	InfluxDB   InfluxDbConfig
 	Rules      []RulesConfig
 }
 

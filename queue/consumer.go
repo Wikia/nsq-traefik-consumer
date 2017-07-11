@@ -31,9 +31,7 @@ func NewConsumer(config common.NsqConfig) (*nsq.Consumer, error) {
 	return consumer, nil
 }
 
-var metricsBuffer map[string]model.PointGroup
-
-func metricsProcessor(k8sConfig common.KubernetesConfig, metricsConfig []common.RulesConfig) nsq.HandlerFunc {
+func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, metricsConfig []common.RulesConfig, metricsBuffer *MetricsBuffer) nsq.HandlerFunc {
 	processor, err := metrics.NewTraefikMetricProcessor(metricsConfig)
 
 	if err != nil {
@@ -87,20 +85,24 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, metricsConfig []common.
 				return nil
 			}
 
-			metricsBuffer, err := processor.Process(entry)
+			processedMetrics, err := processor.Process(entry, measurement)
 
 			if err != nil {
 				log.WithError(err).Error("Error processing metrics")
 			}
 
-			log.WithField("metrics", metricsBuffer).Debug("Gathered metrics")
+			log.WithField("metrics", processedMetrics).Debug("Gathered metrics")
+
+			metricsBuffer.Lock()
+			metricsBuffer.Metrics = append(metricsBuffer.Metrics, processedMetrics)
+			metricsBuffer.Unlock()
 		}
 
 		return nil
 	}
 }
 
-func Consume(config common.Config) error {
+func Consume(config common.Config, metricsBuffer *MetricsBuffer) error {
 	if len(config.Nsq.Topic) == 0 {
 		return fmt.Errorf("NSQ Topic is empty")
 	}
@@ -118,7 +120,7 @@ func Consume(config common.Config) error {
 		return err
 	}
 
-	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.Rules))
+	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.InfluxDB.Measurement, config.Rules, metricsBuffer))
 
 	err = consumer.ConnectToNSQLookupd(config.Nsq.Address)
 	if err != nil {
