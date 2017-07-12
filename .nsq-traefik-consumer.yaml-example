@@ -1,6 +1,8 @@
 LogLevel: debug
 Nsq:
-  Address: http://nsqlookupd1.sjc.k8s.wikia.net
+  Addresses:
+    - http://nsqlookupd1.sjc.k8s.wikia.net
+    - http://nsqlookupd2.sjc.k8s.wikia.net
   Topic: logstash-k8s
   Channel: logstash-k8s-influx-consumers
 Kubernetes:

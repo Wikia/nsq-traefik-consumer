@@ -7,7 +7,7 @@ import (
 )
 
 type NsqConfig struct {
-	Address      string
+	Addresses    []string
 	Topic        string
 	Channel      string
 	ClientConfig *nsq.Config

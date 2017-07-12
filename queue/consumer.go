@@ -123,12 +123,10 @@ func Consume(config common.Config, metricsBuffer *MetricsBuffer) error {
 
 	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.InfluxDB.Measurement, config.Rules, metricsBuffer))
 
-	err = consumer.ConnectToNSQLookupd(config.Nsq.Address)
+	err = consumer.ConnectToNSQLookupds(config.Nsq.Addresses)
 	if err != nil {
-		log.WithField("address", config.Nsq.Address).Panic("Could not connect")
+		log.WithField("address", config.Nsq.Addresses).Panic("Could not connect")
 	}
-
-	defer consumer.DisconnectFromNSQLookupd(config.Nsq.Address)
 
 	for {
 		select {
