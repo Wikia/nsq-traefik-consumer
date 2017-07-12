@@ -25,7 +25,7 @@ spec:
       containers:
       - name: nsq-traefik-consumer
       #TODO proper versioning!!!!!!
-        image: artifactory.wikia-inc.com/services/nsq-traefik-consumer:v1.2.0
+        image: artifactory.wikia-inc.com/platform/nsq-traefik-consumer:v0.1.0
         livenessProbe:
           httpGet:
             path: /heartbeat
