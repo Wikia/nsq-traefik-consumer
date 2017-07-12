@@ -189,7 +189,7 @@ func (tp *TimePointUInt64) SetTs(ts time.Time)  { tp.ts = ts }
 func (tp *TimePointUInt64) Value() uint64       { return tp.v }
 func (tp *TimePointUInt64) SetValue(val uint64) { tp.v = val }
 func (tp *TimePointUInt64) String() string      { return fmt.Sprintf("%d", tp.v) }
-func (tp TimePointUInt64) Clone() TimePoint     { return NewTimePointUInt64(tp.ts, tp.v) }
+func (tp *TimePointUInt64) Clone() TimePoint    { return NewTimePointUInt64(tp.ts, tp.v) }
 
 type TimePointFloat64 struct {
 	v  float64
@@ -205,4 +205,4 @@ func (tp *TimePointFloat64) SetTs(ts time.Time)   { tp.ts = ts }
 func (tp *TimePointFloat64) Value() float64       { return tp.v }
 func (tp *TimePointFloat64) SetValue(val float64) { tp.v = val }
 func (tp *TimePointFloat64) String() string       { return fmt.Sprintf("%g", tp.v) }
-func (tp TimePointFloat64) Clone() TimePoint      { return NewTimePointFloat64(tp.ts, tp.v) }
+func (tp *TimePointFloat64) Clone() TimePoint     { return NewTimePointFloat64(tp.ts, tp.v) }
