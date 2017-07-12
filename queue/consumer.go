@@ -136,6 +136,4 @@ func Consume(config common.Config, metricsBuffer *MetricsBuffer) error {
 			consumer.Stop()
 		}
 	}
-
-	return nil
 }

@@ -15,15 +15,15 @@ type TimeBucket struct {
 	items []TimePoint
 }
 
-func (tb TimeBucket) IsEmpty() bool {
+func (tb *TimeBucket) IsEmpty() bool {
 	return len(tb.items) == 0
 }
 
-func (tb TimeBucket) Len() int {
+func (tb *TimeBucket) Len() int {
 	return len(tb.items)
 }
 
-func (tb TimeBucket) Clone() *TimeBucket {
+func (tb *TimeBucket) Clone() *TimeBucket {
 	res := TimeBucket{start: tb.start, end: tb.end}
 	res.items = make([]TimePoint, len(tb.items))
 	copy(res.items, tb.items)
@@ -48,7 +48,7 @@ func (tb *TimeBucket) Append(pt TimePoint) error {
 	return nil
 }
 
-func (tb TimeBucket) Iter() func() (TimePoint, bool) {
+func (tb *TimeBucket) Iter() func() (TimePoint, bool) {
 	i := -1
 
 	return func() (TimePoint, bool) {
@@ -74,19 +74,19 @@ func NewTimeSeries(resolution time.Duration) *TimeSeries {
 	return &TimeSeries{resolution: resolution}
 }
 
-func (ts TimeSeries) GetResolution() time.Duration {
+func (ts *TimeSeries) GetResolution() time.Duration {
 	return ts.resolution
 }
 
-func (ts TimeSeries) GetStart() time.Time {
+func (ts *TimeSeries) GetStart() time.Time {
 	return ts.start
 }
 
-func (ts TimeSeries) GetBucketCount() int {
+func (ts *TimeSeries) GetBucketCount() int {
 	return len(ts.data)
 }
 
-func (ts TimeSeries) calculateBucketIdx(val time.Time) int64 {
+func (ts *TimeSeries) calculateBucketIdx(val time.Time) int64 {
 	return val.Sub(ts.start).Nanoseconds() / ts.resolution.Nanoseconds()
 }
 
@@ -114,7 +114,7 @@ func (ts *TimeSeries) Trim(start, end time.Time) uint64 {
 	return bucketsDeleted
 }
 
-func (ts TimeSeries) alignTime(val time.Time) time.Time {
+func (ts *TimeSeries) alignTime(val time.Time) time.Time {
 	aligned := val.Round(ts.resolution)
 	if aligned.After(val) {
 		aligned = aligned.Add(-ts.resolution)
@@ -148,7 +148,7 @@ func (ts *TimeSeries) Append(tp TimePoint) error {
 	return ts.data[bucketIdx].Append(tp)
 }
 
-func (ts TimeSeries) Iter() func() (*TimeBucket, bool) {
+func (ts *TimeSeries) Iter() func() (*TimeBucket, bool) {
 	i := -1
 
 	return func() (*TimeBucket, bool) {
