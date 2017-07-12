@@ -172,6 +172,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 			"host_name":     entry.Kubernetes.Host,
 			"cluster_name":  entry.KubernetesClusterName,
 			"data_center":   entry.Datacenter,
+			"rule_id":       rule.Id,
 		}
 
 		pt, err := client.NewPoint(measurement, tags, metrics, time.Now())
