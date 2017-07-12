@@ -5,7 +5,7 @@ metadata:
   namespace: prod
 data:
   config.yaml: |
-    LogLevel: debug
+    LogLevel: info
     Nsq:
       Address: http://nsqlookupd1.sjc.k8s.wikia.net
       Topic: logstash-k8s
@@ -19,7 +19,11 @@ data:
       Measurement: k8s_traefik
       RetentionPolicy: short_term
     Rules:
-      - Id: k8s_helios
+      - Id: generic-internal
     #    UrlRegexp: ^/info
-        FrontendRegexp: \.k8s\.wikia\.net/helios
+        FrontendRegexp: \.k8s\.wikia\.net/
+        Sampling: 1.0
+      - Id: generic-external
+    #    UrlRegexp: ^/info
+        FrontendRegexp: services-k8s\.wikia-dev\.(us|pl)
         Sampling: 1.0
