@@ -45,6 +45,10 @@ else
 	VERSION_GIT := $(shell sh -c 'git describe --always --tags')
 endif
 
+ifeq ($(VERSION_GIT),)
+	VERSION_GIT = "v0.0.1"
+endif
+
 ifeq ($(OS),Windows_NT)
 	BUILD_TIME := $(shell PowerShell -Command "get-date -format yyyy-MM-ddTHH:mm:SSzzz")
 else
@@ -112,3 +116,5 @@ clean:
 	$(if $(filter $(OS),Windows_NT), del $(subst /,\,${BINARY}), rm ${BINARY})
 
 .PHONY: test lint vet $(TARGETS_TEST) $(TARGETS_LINT)
+
+include Makefile.docker
