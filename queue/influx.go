@@ -49,8 +49,8 @@ func RunSender(config common.InfluxDbConfig, metrics *MetricsBuffer) {
 	}()
 }
 
-func NewMetricsBuffer() MetricsBuffer {
-	return MetricsBuffer{Metrics: []client.BatchPoints{}}
+func NewMetricsBuffer() *MetricsBuffer {
+	return &MetricsBuffer{Metrics: []client.BatchPoints{}}
 }
 
 func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {

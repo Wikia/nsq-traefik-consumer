@@ -34,8 +34,8 @@ var runCmd = &cobra.Command{
 			log.WithError(err).Errorf("Error parsing config")
 		}
 		buffer := queue.NewMetricsBuffer()
-		queue.RunSender(config.InfluxDB, &buffer)
-		queue.Consume(config, &buffer)
+		queue.RunSender(config.InfluxDB, buffer)
+		queue.Consume(config, buffer)
 	},
 }
 
