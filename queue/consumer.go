@@ -85,7 +85,7 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 				return nil
 			}
 
-			processedMetrics, err := processor.Process(entry, measurement)
+			processedMetrics, err := processor.Process(entry, message.Timestamp, measurement)
 
 			if err != nil {
 				log.WithError(err).Error("Error processing metrics")

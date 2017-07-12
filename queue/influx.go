@@ -78,7 +78,7 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 		metrics.Unlock()
 
 		bucket.SetDatabase(config.Database)
-		bucket.SetPrecision("s")
+		bucket.SetPrecision("ns")
 		bucket.SetRetentionPolicy(config.RetentionPolicy)
 
 		err = influxClient.Write(bucket)

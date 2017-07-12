@@ -103,6 +103,15 @@ func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values ma
 
 	m["response_size"] = integer
 
+	logTimestamp, err := time.Parse("02/Jan/2006:15:04:05 -0700", values["timestamp"])
+
+	if err != nil {
+		log.WithError(err).WithField("value", values["timestamp"]).Error("Error parsing timestamp for log entry")
+
+		return nil, err
+	}
+
+	m["log_timestamp"] = logTimestamp
 	m["backend_url"] = values["backend_url"]
 	m["request_method"] = values["method"]
 	m["client_username"] = values["username"]
@@ -113,7 +122,7 @@ func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values ma
 	return m, nil
 }
 
-func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, measurement string) (client.BatchPoints, error) {
+func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64, measurement string) (client.BatchPoints, error) {
 	result, err := client.NewBatchPoints(client.BatchPointsConfig{})
 	if err != nil {
 		return nil, err
@@ -136,14 +145,6 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, measurement str
 			continue
 		}
 		mappedMatches[name] = matches[idx]
-	}
-
-	timestamp, err := time.Parse("02/Jan/2006:15:04:05 -0700", mappedMatches["timestamp"])
-
-	if err != nil {
-		log.WithError(err).WithField("entry", entry).Error("Error parsing timestamp for log entry")
-
-		return nil, fmt.Errorf("Error parsing timestamp for log entry")
 	}
 
 	// filtering and rule processing
@@ -173,7 +174,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, measurement str
 			"data_center":   entry.Datacenter,
 		}
 
-		pt, err := client.NewPoint(measurement, tags, metrics, timestamp)
+		pt, err := client.NewPoint(measurement, tags, metrics, time.Now())
 		if err != nil {
 			log.WithError(err).Error("Error creating time point from log entry")
 			continue
