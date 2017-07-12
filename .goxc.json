@@ -36,6 +36,6 @@
 		"Tags": "important",
 		"ExtraArgs": ["-a"]
 	},
-	"PackageVersion": "0.0.1",
+	"PackageVersion": "0.1.0",
 	"ConfigVersion": "0.9"
 }
