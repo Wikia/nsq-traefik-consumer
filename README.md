@@ -13,7 +13,7 @@ InfluxDB:
 * random generated number is lower or equal to one specified as threshold (sampling)
 
 Annotation should have proper fields with proper values defined. Here is the sample annotation:
-```json
+```yaml
 {
   "wikia_com/keys": {
     "influx_metrics": {
