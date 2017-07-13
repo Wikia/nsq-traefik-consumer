@@ -4,7 +4,7 @@ metadata:
   name: nsq-traefik-consumer
   namespace: prod
 spec:
-  replicas: 2
+  replicas: 3
   template:
     metadata:
       labels:
