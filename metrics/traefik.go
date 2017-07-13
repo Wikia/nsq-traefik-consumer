@@ -174,7 +174,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 			continue
 		}
 
-		metrics, err := mp.getMetrics(entry, mappedMatches)
+		values, err := mp.getMetrics(entry, mappedMatches)
 		if err != nil {
 			log.WithError(err).WithField("entry", entry).Error("Error processing log")
 			continue
@@ -188,7 +188,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 			"rule_id":       rule.Id,
 		}
 
-		pt, err := client.NewPoint(measurement, tags, metrics, time.Now())
+		pt, err := client.NewPoint(measurement, tags, values, time.Now())
 		if err != nil {
 			log.WithError(err).Error("Error creating time point from log entry")
 			continue
