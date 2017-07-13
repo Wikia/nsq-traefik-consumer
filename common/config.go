@@ -31,6 +31,7 @@ type RulesConfig struct {
 	Id             string
 	UrlRegexp      string
 	FrontendRegexp string
+	MethodRegexp   string
 	Sampling       float64
 }
 
