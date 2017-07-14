@@ -15,10 +15,10 @@ data:
     Kubernetes:
       AnnotationKey: wikia_com/keys
     InfluxDB:
-      Address: http://prod.app-metrics-db.service.sjc.consul:8086
-      Database: apps_test
+      Address: http://prod.os-metrics-db.service.sjc.consul:8086
+      Database: ingress
       SendInterval: 5s
-      Measurement: k8s_traefik
+      Measurement: access_logs
       RetentionPolicy: short_term
     Rules:
       - Id: generic-internal
