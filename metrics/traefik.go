@@ -159,26 +159,50 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 	// filtering and rule processing
 	for rxp, rule := range mp.Rules {
 		if !rxp.MatchString(mappedMatches["frontend_name"]) {
+			log.WithFields(log.Fields{
+				"entry":   mappedMatches,
+				"rule_id": rule.Id,
+			}).Debug("Frontend name doesn't match regex - skipping")
 			continue
 		}
 
 		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(mappedMatches["path"]) {
+			log.WithFields(log.Fields{
+				"entry":   mappedMatches,
+				"rule_id": rule.Id,
+			}).Debug("Path doesn't match regex - skipping")
 			continue
 		}
 
 		if rule.MethodRegexp != nil && !rule.MethodRegexp.MatchString(mappedMatches["method"]) {
+			log.WithFields(log.Fields{
+				"entry":   mappedMatches,
+				"rule_id": rule.Id,
+			}).Debug("Method doesn't match regex - skipping")
 			continue
 		}
 
 		if !rule.Filter(entry) {
+			log.WithFields(log.Fields{
+				"entry":   mappedMatches,
+				"rule_id": rule.Id,
+			}).Debug("Entry below threshold (sampling) - skipping")
 			continue
 		}
 
 		values, err := mp.getMetrics(entry, mappedMatches)
 		if err != nil {
-			log.WithError(err).WithField("entry", entry).Error("Error processing log")
+			log.WithError(err).WithFields(log.Fields{
+				"entry":   mappedMatches,
+				"rule_id": rule.Id,
+			}).Error("Error processing log")
 			continue
 		}
+
+		log.WithFields(log.Fields{
+			"metrics": values,
+			"rule_id": rule.Id,
+		}).Debug("Successfully derived metrics")
 
 		tags := map[string]string{
 			"frontend_name": mappedMatches["frontend_name"],
@@ -190,7 +214,11 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 
 		pt, err := client.NewPoint(measurement, tags, values, time.Now())
 		if err != nil {
-			log.WithError(err).Error("Error creating time point from log entry")
+			log.WithFields(log.Fields{
+				"values":      values,
+				"tags":        tags,
+				"measurement": measurement,
+			}).WithError(err).Error("Error creating time point from log entry")
 			continue
 		}
 
