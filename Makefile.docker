@@ -1,0 +1,22 @@
+DOCKER_BINARY = $(BINARY)_docker
+
+DOCKER_BUILD_ENV := CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+DOCKER_BUILD_ARGS := -a -installsuffix cgo
+DOCKER_IMAGE := artifactory.wikia-inc.com/platform/nsq-traefik-consumer
+
+$(DOCKER_BINARY): $(SOURCES)
+	${DOCKER_BUILD_ENV} go build ${DOCKER_BUILD_ARGS} ${LDFLAGS} -o ${DOCKER_BINARY} main.go
+
+docker_clean: clean
+	if [ -f ${DOCKER_BINARY} ] ; then rm ${DOCKER_BINARY} ; fi
+
+docker_build: $(DOCKER_BINARY)
+	docker build --build-arg DOCKER_BINARY=${DOCKER_BINARY} -t ${DOCKER_IMAGE}:$(VERSION_GIT) .
+
+docker_show_image:
+	@echo ${DOCKER_IMAGE}:${VERSION_GIT}
+
+docker_upload: docker_build
+	docker -D push ${DOCKER_IMAGE}:${VERSION_GIT}
+
+.PHONY: $(DOCKER_BINARY)

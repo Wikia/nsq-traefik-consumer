@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nsq-traefik-consumer
+  namespace: prod
+data:
+  config.yaml: |
+    LogLevel: info
+    Nsq:
+      Addresses:
+          - http://nsqlookupd1.sjc.k8s.wikia.net
+          - http://nsqlookupd2.sjc.k8s.wikia.net
+      Topic: logstash-k8s
+      Channel: logstash-k8s-influx-consumers
+    Kubernetes:
+      AnnotationKey: wikia_com/keys
+    InfluxDB:
+      Address: http://prod.app-metrics-db.service.sjc.consul:8086
+      Database: apps_test
+      SendInterval: 5s
+      Measurement: k8s_traefik
+      RetentionPolicy: short_term
+    Rules:
+      - Id: generic-internal
+    #    UrlRegexp: ^/info
+        FrontendRegexp: \.k8s\.wikia\.net/
+        Sampling: 1.0
+      - Id: generic-external
+    #    UrlRegexp: ^/info
+        FrontendRegexp: services-k8s\.wikia-dev\.(us|pl)
+        Sampling: 1.0

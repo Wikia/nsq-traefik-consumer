@@ -1,0 +1,21 @@
+LogLevel: debug
+Nsq:
+  Addresses:
+    - http://nsqlookupd1.sjc.k8s.wikia.net
+    - http://nsqlookupd2.sjc.k8s.wikia.net
+  Topic: logstash-k8s
+  Channel: logstash-k8s-influx-consumers
+Kubernetes:
+  AnnotationKey: wikia_com/keys
+InfluxDB:
+  Address: http://prod.app-metrics-db.service.sjc.consul:8086
+  Database: apps_test
+  SendInterval: 5s
+  Measurement: k8s_traefik
+  RetentionPolicy: short_term
+Rules:
+  - Id: k8s_helios
+    UrlRegexp: ^/info
+    MethodRegexp: ^POST$
+    FrontendRegexp: \.k8s\.wikia\.net/helios
+    Sampling: 1.0

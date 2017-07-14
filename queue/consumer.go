@@ -9,26 +9,17 @@ import (
 
 	"encoding/json"
 
+	"strings"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
+	"github.com/Wikia/nsq-traefik-consumer/metrics"
 	"github.com/Wikia/nsq-traefik-consumer/model"
+	"github.com/mitchellh/mapstructure"
 	"github.com/nsqio/go-nsq"
 )
 
-type Config struct {
-	Address      string
-	Topic        string
-	Channel      string
-	ClientConfig *nsq.Config
-}
-
-func NewConfig() Config {
-	config := Config{}
-	config.ClientConfig = nsq.NewConfig()
-	return config
-}
-
-func NewConsumer(config Config) (*nsq.Consumer, error) {
+func NewConsumer(config common.NsqConfig) (*nsq.Consumer, error) {
 	consumer, err := nsq.NewConsumer(config.Topic, config.Channel, config.ClientConfig)
 	if err != nil {
 		return nil, err
@@ -40,51 +31,102 @@ func NewConsumer(config Config) (*nsq.Consumer, error) {
 	return consumer, nil
 }
 
-func Consume(config Config) error {
-	if len(config.Topic) == 0 {
-		return fmt.Errorf("NSQ Topic is empty")
-	}
-
-	if len(config.Channel) == 0 {
-		return fmt.Errorf("NSQ Channel is empty")
-	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	consumer, err := NewConsumer(config)
+func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, metricsConfig []common.RulesConfig, metricsBuffer *MetricsBuffer) nsq.HandlerFunc {
+	processor, err := metrics.NewTraefikMetricProcessor(metricsConfig)
 
 	if err != nil {
-		return err
+		log.WithError(err).Panic("Could not create metric processor")
 	}
 
-	consumer.AddHandler(nsq.HandlerFunc(func(message *nsq.Message) error {
+	return func(message *nsq.Message) error {
 		log.WithField("message", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
 		entry := model.TraefikLog{}
 		err := json.Unmarshal(message.Body, &entry)
 		if err != nil {
 			log.WithError(err).WithField("body", string(message.Body)).Errorf("Error unmarshaling message")
 		} else {
-			log.WithFields(log.Fields{
-				"log":        entry.Log,
-				"time":       entry.Time,
-				"stream":     entry.Stream,
-				"docker":     entry.Docker,
-				"kubernetes": entry.Kubernetes,
-				"datacenter": entry.Datacenter,
-				"cluster":    entry.KubernetesClusterName,
-				"ts":         entry.Ts,
-			}).Info("Message decoded")
+			entry.Log = strings.TrimSpace(entry.Log)
+			value, has := entry.Kubernetes.Annotations[k8sConfig.AnnotationKey]
+			if err != nil {
+				log.WithError(err).Errorf("Error getting annotation")
+				return nil
+			}
+
+			if !has || len(value) == 0 {
+				log.Debug("Skipping message - no proper annotation found")
+				return nil
+			}
+
+			var wikiaConfig map[string]interface{}
+
+			err = json.Unmarshal([]byte(value), &wikiaConfig)
+
+			if err != nil {
+				log.WithError(err).WithField("value", string(value)).Error("Error unmarshaling pod config")
+				return nil
+			}
+
+			influxConfig, has := wikiaConfig["influx_metrics"]
+			if !has {
+				log.WithField("annotation", value).Info("Skipping message - no metrics config found")
+				return nil
+			}
+
+			var annotationConfig model.GenericInfluxAnnotation
+			err = mapstructure.Decode(influxConfig, &annotationConfig)
+
+			if err != nil {
+				log.WithError(err).Error("Could not unmarshal metrics config")
+				return nil
+			}
+
+			if entry.Kubernetes.ContainerName != annotationConfig.ContainerName {
+				log.WithField("container_name", entry.Kubernetes.ContainerName).Info("Skipping message - container not configured for metrics")
+				return nil
+			}
+
+			processedMetrics, err := processor.Process(entry, message.Timestamp, measurement)
+
+			if err != nil {
+				log.WithError(err).Error("Error processing metrics")
+				return nil
+			}
+
+			log.WithField("metrics_cnt", len(processedMetrics.Points())).Debug("Gathered metrics")
+
+			metricsBuffer.Lock()
+			metricsBuffer.Metrics = append(metricsBuffer.Metrics, processedMetrics)
+			metricsBuffer.Unlock()
 		}
 
 		return nil
-	}))
-
-	err = consumer.ConnectToNSQLookupd(config.Address)
-	if err != nil {
-		log.WithField("address", config.Address).Panic("Could not connect")
 	}
-	defer consumer.DisconnectFromNSQLookupd(config.Address)
+}
+
+func Consume(config common.Config, metricsBuffer *MetricsBuffer) error {
+	if len(config.Nsq.Topic) == 0 {
+		return fmt.Errorf("NSQ Topic is empty")
+	}
+
+	if len(config.Nsq.Channel) == 0 {
+		return fmt.Errorf("NSQ Channel is empty")
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	consumer, err := NewConsumer(config.Nsq)
+
+	if err != nil {
+		return err
+	}
+
+	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.InfluxDB.Measurement, config.Rules, metricsBuffer))
+
+	err = consumer.ConnectToNSQLookupds(config.Nsq.Addresses)
+	if err != nil {
+		log.WithField("address", config.Nsq.Addresses).Panic("Could not connect")
+	}
 
 	for {
 		select {
@@ -94,6 +136,4 @@ func Consume(config Config) error {
 			consumer.Stop()
 		}
 	}
-
-	return nil
 }
