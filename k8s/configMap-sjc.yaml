@@ -24,7 +24,7 @@ data:
     Rules:
       - Id: generic-internal
     #    UrlRegexp: ^/info
-        FrontendRegexp: \.k8s\.wikia\.net/
+        FrontendRegexp: \.k8s\.wikia\.net
         Sampling: 1.0
       - Id: generic-external
     #    UrlRegexp: ^/info
