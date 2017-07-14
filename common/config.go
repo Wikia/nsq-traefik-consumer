@@ -10,6 +10,7 @@ type NsqConfig struct {
 	Addresses    []string
 	Topic        string
 	Channel      string
+	MaxInFlight  int
 	ClientConfig *nsq.Config
 }
 

@@ -20,7 +20,9 @@ import (
 )
 
 func NewConsumer(config common.NsqConfig) (*nsq.Consumer, error) {
-	config.ClientConfig.MaxInFlight = 16
+	if config.MaxInFlight > 0 {
+		config.ClientConfig.MaxInFlight = config.MaxInFlight
+	}
 	consumer, err := nsq.NewConsumer(config.Topic, config.Channel, config.ClientConfig)
 
 	if err != nil {

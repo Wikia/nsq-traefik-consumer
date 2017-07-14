@@ -5,6 +5,7 @@ Nsq:
     - http://nsqlookupd2.sjc.k8s.wikia.net
   Topic: logstash-k8s
   Channel: logstash-k8s-influx-consumers
+  MaxInFlight: 20
 Kubernetes:
   AnnotationKey: wikia_com/keys
 InfluxDB:
