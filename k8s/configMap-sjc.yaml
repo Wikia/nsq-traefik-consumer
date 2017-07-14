@@ -29,3 +29,9 @@ data:
     #    UrlRegexp: ^/info
         FrontendRegexp: services-k8s\.wikia-dev\.(us|pl)
         Sampling: 1.0
+      - Id: geoip-external
+        FrontendRegexp: services\.wikia\.com\/geoip
+        Sampling: 1.0
+      - Id: whoami-external
+        FrontendRegexp: services\.wikia\.com\/whoami
+        Sampling: 1.0
