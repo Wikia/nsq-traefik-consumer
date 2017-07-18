@@ -39,6 +39,7 @@ type RulesConfig struct {
 type Config struct {
 	Nsq        NsqConfig
 	LogLevel   string
+	LogAsJson  bool
 	Kubernetes KubernetesConfig
 	InfluxDB   InfluxDbConfig
 	Rules      []RulesConfig

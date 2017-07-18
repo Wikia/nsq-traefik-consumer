@@ -48,6 +48,7 @@ func Execute() {
 
 func init() {
 	viper.SetDefault("LogLevel", "info")
+	viper.SetDefault("LogAsJson", true)
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.nsq-traefik-consumer.yaml)")
@@ -69,6 +70,10 @@ func initConfig() {
 		common.Log.WithError(err).Error("Error loading config file")
 	} else {
 		common.Log.Infof("Using config file: %s", viper.ConfigFileUsed())
+	}
+
+	if viper.GetBool("LogAsJson") {
+		log.SetFormatter(&log.JSONFormatter{})
 	}
 
 	level, err := log.ParseLevel(viper.GetString("LogLevel"))
