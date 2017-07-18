@@ -57,6 +57,7 @@ Data being sent to InfluxDB are in the form of:
 ### Sample configuration
 ```yaml
 LogLevel: debug
+LogAsJson: true
 Nsq:
   Addresses:
     - http://nsqlookupd1.sjc.k8s.wikia.net
