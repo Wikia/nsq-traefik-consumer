@@ -6,6 +6,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/Wikia/nsq-traefik-consumer/common"
 )
 
 type TimeBucket struct {
@@ -33,7 +34,7 @@ func (tb *TimeBucket) Clone() *TimeBucket {
 
 func (tb *TimeBucket) Append(pt TimePoint) error {
 	if pt.Ts().Before(tb.start) || pt.Ts().After(tb.end) {
-		log.WithFields(log.Fields{
+		common.Log.WithFields(log.Fields{
 			"start": tb.start,
 			"end":   tb.end,
 			"point": pt.Ts(),

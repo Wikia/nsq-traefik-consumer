@@ -61,7 +61,7 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 
 		_, has := mp.Rules[rxp]
 		if has {
-			log.WithFields(log.Fields{
+			common.Log.WithFields(log.Fields{
 				"rule_id":      cfg.Id,
 				"duplicate_id": mp.Rules[rxp].Id,
 			}).Error("Duplicated rules")
@@ -89,7 +89,7 @@ func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values ma
 	integer, err = strconv.ParseInt(values["request_time"], 10, 64)
 
 	if err != nil {
-		log.WithError(err).WithField("value", values["request_time"]).Error("Error parsing request time value as integer")
+		common.Log.WithError(err).WithField("value", values["request_time"]).Error("Error parsing request time value as integer")
 	}
 
 	m["request_time"] = integer
@@ -115,7 +115,7 @@ func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values ma
 	logTimestamp, err := time.Parse("02/Jan/2006:15:04:05 -0700", values["timestamp"])
 
 	if err != nil {
-		log.WithError(err).WithField("value", values["timestamp"]).Error("Error parsing timestamp for log entry")
+		common.Log.WithError(err).WithField("value", values["timestamp"]).Error("Error parsing timestamp for log entry")
 
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 	mappedMatches := map[string]string{}
 
 	if len(matches) != 15 {
-		log.WithFields(log.Fields{
+		common.Log.WithFields(log.Fields{
 			"matches_cnt": len(matches),
 			"entry":       entry.Log,
 		}).Error("Error matching Traefik log")
@@ -159,7 +159,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 	// filtering and rule processing
 	for rxp, rule := range mp.Rules {
 		if !rxp.MatchString(mappedMatches["frontend_name"]) {
-			log.WithFields(log.Fields{
+			common.Log.WithFields(log.Fields{
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Debug("Frontend name doesn't match regex - skipping")
@@ -167,7 +167,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 		}
 
 		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(mappedMatches["path"]) {
-			log.WithFields(log.Fields{
+			common.Log.WithFields(log.Fields{
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Debug("Path doesn't match regex - skipping")
@@ -175,7 +175,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 		}
 
 		if rule.MethodRegexp != nil && !rule.MethodRegexp.MatchString(mappedMatches["method"]) {
-			log.WithFields(log.Fields{
+			common.Log.WithFields(log.Fields{
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Debug("Method doesn't match regex - skipping")
@@ -183,7 +183,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 		}
 
 		if !rule.Filter(entry) {
-			log.WithFields(log.Fields{
+			common.Log.WithFields(log.Fields{
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Debug("Entry below threshold (sampling) - skipping")
@@ -192,14 +192,14 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 
 		values, err := mp.getMetrics(entry, mappedMatches)
 		if err != nil {
-			log.WithError(err).WithFields(log.Fields{
+			common.Log.WithError(err).WithFields(log.Fields{
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Error("Error processing log")
 			continue
 		}
 
-		log.WithFields(log.Fields{
+		common.Log.WithFields(log.Fields{
 			"metrics": values,
 			"rule_id": rule.Id,
 		}).Debug("Successfully derived metrics")
@@ -214,7 +214,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 
 		pt, err := client.NewPoint(measurement, tags, values, time.Now())
 		if err != nil {
-			log.WithFields(log.Fields{
+			common.Log.WithFields(log.Fields{
 				"values":      values,
 				"tags":        tags,
 				"measurement": measurement,

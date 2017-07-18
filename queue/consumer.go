@@ -39,25 +39,25 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 	processor, err := metrics.NewTraefikMetricProcessor(metricsConfig)
 
 	if err != nil {
-		log.WithError(err).Panic("Could not create metric processor")
+		common.Log.WithError(err).Panic("Could not create metric processor")
 	}
 
 	return func(message *nsq.Message) error {
-		log.WithField("message", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
+		common.Log.WithField("message", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
 		entry := model.TraefikLog{}
 		err := json.Unmarshal(message.Body, &entry)
 		if err != nil {
-			log.WithError(err).WithField("body", string(message.Body)).Errorf("Error unmarshaling message")
+			common.Log.WithError(err).WithField("body", string(message.Body)).Errorf("Error unmarshaling message")
 		} else {
 			entry.Log = strings.TrimSpace(entry.Log)
 			value, has := entry.Kubernetes.Annotations[k8sConfig.AnnotationKey]
 			if err != nil {
-				log.WithError(err).Errorf("Error getting annotation")
+				common.Log.WithError(err).Errorf("Error getting annotation")
 				return nil
 			}
 
 			if !has || len(value) == 0 {
-				log.Debug("Skipping message - no proper annotation found")
+				common.Log.Debug("Skipping message - no proper annotation found")
 				return nil
 			}
 
@@ -66,13 +66,13 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 			err = json.Unmarshal([]byte(value), &wikiaConfig)
 
 			if err != nil {
-				log.WithError(err).WithField("value", string(value)).Error("Error unmarshaling pod config")
+				common.Log.WithError(err).WithField("value", string(value)).Error("Error unmarshaling pod config")
 				return nil
 			}
 
 			influxConfig, has := wikiaConfig["influx_metrics"]
 			if !has {
-				log.WithField("annotation", value).Info("Skipping message - no metrics config found")
+				common.Log.WithField("annotation", value).Info("Skipping message - no metrics config found")
 				return nil
 			}
 
@@ -80,23 +80,23 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 			err = mapstructure.Decode(influxConfig, &annotationConfig)
 
 			if err != nil {
-				log.WithError(err).Error("Could not unmarshal metrics config")
+				common.Log.WithError(err).Error("Could not unmarshal metrics config")
 				return nil
 			}
 
 			if entry.Kubernetes.ContainerName != annotationConfig.ContainerName {
-				log.WithField("container_name", entry.Kubernetes.ContainerName).Info("Skipping message - container not configured for metrics")
+				common.Log.WithField("container_name", entry.Kubernetes.ContainerName).Info("Skipping message - container not configured for metrics")
 				return nil
 			}
 
 			processedMetrics, err := processor.Process(entry, message.Timestamp, measurement)
 
 			if err != nil {
-				log.WithError(err).Error("Error processing metrics")
+				common.Log.WithError(err).Error("Error processing metrics")
 				return nil
 			}
 
-			log.WithField("metrics_cnt", len(processedMetrics.Points())).Debug("Gathered metrics")
+			common.Log.WithField("metrics_cnt", len(processedMetrics.Points())).Debug("Gathered metrics")
 
 			metricsBuffer.Lock()
 			metricsBuffer.Metrics = append(metricsBuffer.Metrics, processedMetrics)
@@ -129,7 +129,7 @@ func Consume(config common.Config, metricsBuffer *MetricsBuffer) error {
 
 	err = consumer.ConnectToNSQLookupds(config.Nsq.Addresses)
 	if err != nil {
-		log.WithField("address", config.Nsq.Addresses).Panic("Could not connect")
+		common.Log.WithField("address", config.Nsq.Addresses).Panic("Could not connect")
 	}
 
 	for {
