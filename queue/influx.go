@@ -43,7 +43,7 @@ func RunSender(config common.InfluxDbConfig, metrics *MetricsBuffer) {
 			<-time.After(config.SendInterval)
 			err := sendMetrics(config, metrics)
 			if err != nil {
-				log.WithError(err).Error("Error sending metrics")
+				common.Log.WithError(err).Error("Error sending metrics")
 			}
 		}
 	}()
@@ -83,18 +83,18 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 
 		err = influxClient.Write(bucket)
 		if err != nil {
-			log.WithError(err).Error("Error sending metrics to Influx DB")
+			common.Log.WithError(err).Error("Error sending metrics to Influx DB")
 		}
 		curCnt = len(bucket.Points())
 		cnt += curCnt
 
-		log.WithFields(log.Fields{
+		common.Log.WithFields(log.Fields{
 			"count":        cnt,
 			"buckets_left": len(metrics.Metrics),
 		}).Info("Wrote metrics to InfluxDB")
 	}
 
-	log.WithField("count", cnt).Info("Finished writing metrics to InfluxDB")
+	common.Log.WithField("count", cnt).Info("Finished writing metrics to InfluxDB")
 
 	metrics.Metrics = []client.BatchPoints{}
 

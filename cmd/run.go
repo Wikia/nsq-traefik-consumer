@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/Wikia/nsq-traefik-consumer/queue"
 	"github.com/spf13/cobra"
@@ -31,7 +30,7 @@ var runCmd = &cobra.Command{
 		config := common.NewConfig()
 		err := viper.Unmarshal(&config)
 		if err != nil {
-			log.WithError(err).Errorf("Error parsing config")
+			common.Log.WithError(err).Errorf("Error parsing config")
 		}
 		buffer := queue.NewMetricsBuffer()
 		queue.RunSender(config.InfluxDB, buffer)

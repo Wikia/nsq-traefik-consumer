@@ -18,6 +18,7 @@ import (
 	"os"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -40,13 +41,14 @@ to quickly create a Cobra application.`,
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
-		log.WithError(err).Errorf("Error running command")
+		common.Log.WithError(err).Errorf("Error running command")
 		os.Exit(-1)
 	}
 }
 
 func init() {
 	viper.SetDefault("LogLevel", "info")
+	viper.SetDefault("LogAsJson", true)
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.nsq-traefik-consumer.yaml)")
@@ -65,15 +67,19 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
-		log.WithError(err).Error("Error loading config file")
+		common.Log.WithError(err).Error("Error loading config file")
 	} else {
-		log.Infof("Using config file: %s", viper.ConfigFileUsed())
+		common.Log.Infof("Using config file: %s", viper.ConfigFileUsed())
+	}
+
+	if viper.GetBool("LogAsJson") {
+		log.SetFormatter(&log.JSONFormatter{})
 	}
 
 	level, err := log.ParseLevel(viper.GetString("LogLevel"))
 
 	if err != nil {
-		log.WithError(err).Error("Error parsing LogLevel - setting to Info")
+		common.Log.WithError(err).Error("Error parsing LogLevel - setting to Info")
 		log.SetLevel(log.InfoLevel)
 	} else {
 		log.SetLevel(level)

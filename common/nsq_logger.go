@@ -48,15 +48,15 @@ func (n NSQLogrusLogger) Output(_ int, s string) error {
 		msg := strings.TrimSpace(s[3:])
 		switch s[:3] {
 		case nsqDebugLevel:
-			log.Debugln(msg)
+			Log.Debugln(msg)
 		case nsqInfoLevel:
-			log.Infoln(msg)
+			Log.Infoln(msg)
 		case nsqWarnLevel:
-			log.Warnln(msg)
+			Log.Warnln(msg)
 		case nsqErrLevel:
-			log.Errorln(msg)
+			Log.Errorln(msg)
 		default:
-			log.Infoln(msg)
+			Log.Infoln(msg)
 		}
 	}
 	return nil
