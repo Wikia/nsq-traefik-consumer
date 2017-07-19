@@ -43,7 +43,7 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 	}
 
 	return func(message *nsq.Message) error {
-		common.Log.WithField("message", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
+		common.Log.WithField("message_id", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
 		entry := model.TraefikLog{}
 		err := json.Unmarshal(message.Body, &entry)
 		if err != nil {
