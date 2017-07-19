@@ -20,7 +20,7 @@ data:
       Database: ingress
       SendInterval: 5s
       Measurement: access_logs
-      RetentionPolicy: short_term
+      RetentionPolicy: default
     Rules:
       - Id: generic-internal
     #    UrlRegexp: ^/info
