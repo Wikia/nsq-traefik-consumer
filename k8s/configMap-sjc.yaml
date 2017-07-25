@@ -33,3 +33,6 @@ data:
       - Id: services-all
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net
         SamplingRate: 1.0
+      - Id: helios
+        FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
+        SamplingRate: 1.0
