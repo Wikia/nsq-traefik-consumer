@@ -30,6 +30,9 @@ data:
     #    UrlRegexp: ^/info
         FrontendRegexp: services-k8s\.wikia-dev\.(us|pl)
         Sampling: 1.0
+      - Id: alerting-tester
+        FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/alerting-tester
+        SamplingRate: 1.0
       - Id: whoami
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/whoami
         SamplingRate: 1.0
