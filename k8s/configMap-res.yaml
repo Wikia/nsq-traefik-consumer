@@ -22,14 +22,8 @@ data:
       Measurement: access_logs
       RetentionPolicy: default
     Rules:
-      - Id: alerting-tester
-        FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/alerting-tester
-        SamplingRate: 1.0
-      - Id: whoami
-        FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/whoami
-        SamplingRate: 1.0
-      - Id: geoip
-        FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/geoip
+      - Id: services-all
+        FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/
         SamplingRate: 1.0
       - Id: helios
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
