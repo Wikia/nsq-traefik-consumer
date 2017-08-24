@@ -23,7 +23,7 @@ data:
       RetentionPolicy: default
     Rules:
       - Id: services-all
-        FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/
+        FrontendRegexp: ^.+\.k8s\.wikia\.net/
         SamplingRate: 1.0
       - Id: helios
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
