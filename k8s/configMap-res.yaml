@@ -5,7 +5,7 @@ metadata:
   namespace: prod
 data:
   config.yaml: |
-    LogLevel: info
+    LogLevel: warning
     Nsq:
       eddresses:
           - http://nsqlookupd1.res.k8s.wikia.net
