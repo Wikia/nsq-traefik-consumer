@@ -7,9 +7,9 @@ data:
   config.yaml: |
     LogLevel: warning
     Nsq:
-      Addresses:
-          - http://nsqlookupd1.sjc.k8s.wikia.net
-          - http://nsqlookupd2.sjc.k8s.wikia.net
+      eddresses:
+          - http://nsqlookupd1.res.k8s.wikia.net
+          - http://nsqlookupd2.res.k8s.wikia.net
       Topic: logstash-k8s
       Channel: logstash-k8s-influx-consumers
       MaxInFlight: 200
@@ -23,7 +23,7 @@ data:
       RetentionPolicy: default
     Rules:
       - Id: services-all
-        FrontendRegexp: ^.+\.k8s\.wikia\.net
+        FrontendRegexp: ^.+\.k8s\.wikia\.net/
         SamplingRate: 1.0
       - Id: helios
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
@@ -38,5 +38,5 @@ data:
         FrontendRegexp: ^services-k8s\.wikia-dev\.(pl|us)/helios
         SamplingRate: 1.0
       - Id: helios-dev-k8s
-        FrontendRegexp: ^prod\.sjc\.k8s\.wikia\.net/helios
+        FrontendRegexp: ^prod\.res\.k8s\.wikia\.net/helios
         SamplingRate: 1.0
