@@ -5,6 +5,8 @@ import (
 
 	"sync"
 
+	"container/list"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/influxdata/influxdb/client/v2"
@@ -13,7 +15,7 @@ import (
 var influxClient client.Client
 
 type MetricsBuffer struct {
-	Metrics []client.BatchPoints
+	Metrics *list.List
 	sync.RWMutex
 }
 
@@ -50,11 +52,11 @@ func RunSender(config common.InfluxDbConfig, metrics *MetricsBuffer) {
 }
 
 func NewMetricsBuffer() *MetricsBuffer {
-	return &MetricsBuffer{Metrics: []client.BatchPoints{}}
+	return &MetricsBuffer{Metrics: list.New()}
 }
 
 func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
-	if len(metrics.Metrics) == 0 {
+	if metrics.Metrics.Len() == 0 {
 		return nil
 	}
 
@@ -67,16 +69,18 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 	cnt := 0
 	curCnt := 0
 	for {
-		if len(metrics.Metrics) == 0 {
+		if metrics.Metrics.Len() == 0 {
 			break
 		}
 
 		var bucket client.BatchPoints
 
 		metrics.Lock()
-		bucket, metrics.Metrics = metrics.Metrics[0], metrics.Metrics[1:]
+		element := metrics.Metrics.Front()
+		metrics.Metrics.Remove(element)
 		metrics.Unlock()
 
+		bucket, _ = element.Value.(client.BatchPoints)
 		bucket.SetDatabase(config.Database)
 		bucket.SetPrecision("ns")
 		bucket.SetRetentionPolicy(config.RetentionPolicy)
@@ -90,13 +94,11 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 
 		common.Log.WithFields(log.Fields{
 			"count":        cnt,
-			"buckets_left": len(metrics.Metrics),
+			"buckets_left": metrics.Metrics.Len(),
 		}).Info("Wrote metrics to InfluxDB")
 	}
 
 	common.Log.WithField("count", cnt).Info("Finished writing metrics to InfluxDB")
-
-	metrics.Metrics = []client.BatchPoints{}
 
 	return nil
 }

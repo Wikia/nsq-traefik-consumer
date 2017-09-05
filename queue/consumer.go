@@ -99,7 +99,7 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 			common.Log.WithField("metrics_cnt", len(processedMetrics.Points())).Debug("Gathered metrics")
 
 			metricsBuffer.Lock()
-			metricsBuffer.Metrics = append(metricsBuffer.Metrics, processedMetrics)
+			metricsBuffer.Metrics.PushBack(processedMetrics)
 			metricsBuffer.Unlock()
 		}
 
