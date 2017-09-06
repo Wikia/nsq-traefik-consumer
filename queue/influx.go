@@ -8,6 +8,7 @@ import (
 	"container/list"
 
 	"github.com/Wikia/nsq-traefik-consumer/common"
+	"github.com/containous/traefik/log"
 	"github.com/influxdata/influxdb/client/v2"
 	stats "github.com/rcrowley/go-metrics"
 )
@@ -67,14 +68,22 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 	}
 
 	gauge := stats.GetOrRegisterGauge("buffer_size", stats.DefaultRegistry)
+	counter := stats.GetOrRegisterCounter("points_sent", stats.DefaultRegistry)
 
-	cnt := 0
+	buffer, err := client.NewBatchPoints(client.BatchPointsConfig{
+		Precision:       "ns",
+		Database:        config.Database,
+		RetentionPolicy: config.RetentionPolicy,
+	})
+
+	if err != nil {
+		common.Log.WithError(err).Error("Error creating batch points for Influx")
+	}
+
 	for {
 		if metrics.Metrics.Len() == 0 {
 			break
 		}
-
-		var bucket client.BatchPoints
 
 		metrics.Lock()
 		element := metrics.Metrics.Front()
@@ -82,22 +91,37 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 		metrics.Unlock()
 		gauge.Update(int64(metrics.Metrics.Len()))
 
-		bucket, _ = element.Value.(client.BatchPoints)
-		bucket.SetDatabase(config.Database)
-		bucket.SetPrecision("ns")
-		bucket.SetRetentionPolicy(config.RetentionPolicy)
+		bucket, _ := element.Value.(client.BatchPoints)
+		buffer.AddPoints(bucket.Points())
 
-		err = influxClient.Write(bucket)
+		if len(buffer.Points()) >= config.BatchSize {
+			err = influxClient.Write(buffer)
+			if err != nil {
+				common.Log.WithError(err).Error("Error sending metrics to Influx DB")
+			}
+
+			counter.Inc(int64(len(buffer.Points())))
+			buffer, err = client.NewBatchPoints(client.BatchPointsConfig{
+				Precision:       "ns",
+				Database:        config.Database,
+				RetentionPolicy: config.RetentionPolicy,
+			})
+			if err != nil {
+				log.WithError(err).Error("Error recreating batch points for Influx")
+			}
+		}
+	}
+
+	if len(buffer.Points()) > 0 {
+		err = influxClient.Write(buffer)
 		if err != nil {
 			common.Log.WithError(err).Error("Error sending metrics to Influx DB")
 		}
 
-		counter := stats.GetOrRegisterCounter("points_sent", stats.DefaultRegistry)
-		cnt += len(bucket.Points())
-		counter.Inc(int64(len(bucket.Points())))
+		counter.Inc(int64(len(buffer.Points())))
 	}
 
-	common.Log.WithField("count", cnt).Info("Finished writing metrics to InfluxDB")
+	common.Log.WithField("count", counter.Count()).Info("Finished writing metrics to InfluxDB")
 
 	return nil
 }

@@ -21,6 +21,7 @@ data:
       SendInterval: 5s
       Measurement: access_logs
       RetentionPolicy: default
+      BatchSize: 100
     Rules:
       - Id: services-all
         FrontendRegexp: ^.+\.k8s\.wikia\.net
