@@ -49,6 +49,7 @@ func Execute() {
 func init() {
 	viper.SetDefault("LogLevel", "info")
 	viper.SetDefault("LogAsJson", true)
+	viper.SetDefault("BatchSize", 100)
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.nsq-traefik-consumer.yaml)")

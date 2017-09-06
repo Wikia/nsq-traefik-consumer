@@ -26,6 +26,7 @@ type InfluxDbConfig struct {
 	Measurement     string
 	RetentionPolicy string
 	SendInterval    time.Duration
+	BatchSize       int
 }
 
 type RulesConfig struct {

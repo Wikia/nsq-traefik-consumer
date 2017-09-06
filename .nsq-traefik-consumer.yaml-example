@@ -14,6 +14,7 @@ InfluxDB:
   SendInterval: 5s
   Measurement: k8s_traefik
   RetentionPolicy: short_term
+  BatchSize: 100
 Rules:
   - Id: k8s_helios
     UrlRegexp: ^/info
