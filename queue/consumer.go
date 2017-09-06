@@ -13,10 +13,11 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
-	"github.com/Wikia/nsq-traefik-consumer/metrics"
+	metrics "github.com/Wikia/nsq-traefik-consumer/metrics"
 	"github.com/Wikia/nsq-traefik-consumer/model"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nsqio/go-nsq"
+	stats "github.com/rcrowley/go-metrics"
 )
 
 func NewConsumer(config common.NsqConfig) (*nsq.Consumer, error) {
@@ -41,6 +42,8 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 	if err != nil {
 		common.Log.WithError(err).Panic("Could not create metric processor")
 	}
+
+	gauge := stats.GetOrRegisterGauge("buffer_size", stats.DefaultRegistry)
 
 	return func(message *nsq.Message) error {
 		common.Log.WithField("message_id", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
@@ -96,11 +99,13 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 				return nil
 			}
 
-			common.Log.WithField("metrics_cnt", len(processedMetrics.Points())).Debug("Gathered metrics")
-
+			counter := stats.GetOrRegisterCounter("logs_consumed", stats.DefaultRegistry)
 			metricsBuffer.Lock()
 			metricsBuffer.Metrics.PushBack(processedMetrics)
 			metricsBuffer.Unlock()
+			counter.Inc(int64(len(processedMetrics.Points())))
+			gauge.Update(int64(metricsBuffer.Metrics.Len()))
+
 		}
 
 		return nil

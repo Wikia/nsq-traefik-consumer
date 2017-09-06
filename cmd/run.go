@@ -33,6 +33,8 @@ var runCmd = &cobra.Command{
 			common.Log.WithError(err).Errorf("Error parsing config")
 		}
 		buffer := queue.NewMetricsBuffer()
+		go common.ServeStats()
+
 		queue.RunSender(config.InfluxDB, buffer)
 		queue.Consume(config, buffer)
 	},
