@@ -1,0 +1,15 @@
+defaultEntryPoints = ["http"]
+
+logLevel = "DEBUG"
+
+[entryPoints]
+  [entryPoints.http]
+  address = ":8000"
+
+[web]
+address = ":9090"
+
+[marathon]
+  endpoint = "{{.MarathonURL}}"
+  watch = true
+  exposedByDefault = true

@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
 )
@@ -240,6 +241,11 @@ func (i *Index) deleteNonManifestFiles(m *Manifest) error {
 	}
 
 	return nil
+}
+
+// Wait returns once outstanding compactions have finished.
+func (i *Index) Wait() {
+	i.wg.Wait()
 }
 
 // Close closes the index.
@@ -614,25 +620,54 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return fs.MeasurementTagKeysByExpr(name, expr)
 }
 
-// ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
-func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.Expr, fn func(tags models.Tags) error) error {
+// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
+//
+// See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
+// method.
+func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
-	itr, err := fs.MeasurementSeriesByExprIterator(name, condition, i.fieldset)
-	if err != nil {
-		return err
-	} else if itr == nil {
-		return nil
+	if len(keys) == 0 {
+		return nil, nil
 	}
 
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		if err := fn(e.Tags()); err != nil {
-			return err
+	results := make([][]string, len(keys))
+	// If we haven't been provided sorted keys, then we need to sort them.
+	if !keysSorted {
+		sort.Sort(sort.StringSlice(keys))
+	}
+
+	// No expression means that the values shouldn't be filtered, so we can
+	// fetch them all.
+	if expr == nil {
+		for ki, key := range keys {
+			itr := fs.TagValueIterator(name, []byte(key))
+			for val := itr.Next(); val != nil; val = itr.Next() {
+				results[ki] = append(results[ki], string(val.Value()))
+			}
 		}
+		return results, nil
 	}
 
-	return nil
+	// This is the case where we have filtered series by some WHERE condition.
+	// We only care about the tag values for the keys given the
+	// filtered set of series ids.
+	resultSet, err := fs.tagValuesByKeyAndExpr(name, keys, expr, i.fieldset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result sets into []string
+	for i, s := range resultSet {
+		values := make([]string, 0, len(s))
+		for v := range s {
+			values = append(values, v)
+		}
+		sort.Sort(sort.StringSlice(values))
+		results[i] = values
+	}
+	return results, nil
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement.
@@ -669,7 +704,7 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([]
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
-func (i *Index) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -684,7 +719,7 @@ func (i *Index) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.
 	// dimensions. This is the TagSet for that series. Series with the same
 	// TagSet are then grouped together, because for the purpose of GROUP BY
 	// they are part of the same composite series.
-	tagSets := make(map[string]*influxql.TagSet, 64)
+	tagSets := make(map[string]*query.TagSet, 64)
 
 	if itr != nil {
 		for e := itr.Next(); e != nil; e = itr.Next() {
@@ -701,7 +736,7 @@ func (i *Index) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.
 			tagSet, ok := tagSets[string(tagsAsKey)]
 			if !ok {
 				// This TagSet is new, create a new entry for it.
-				tagSet = &influxql.TagSet{
+				tagSet = &query.TagSet{
 					Tags: tags,
 					Key:  tagsAsKey,
 				}
@@ -721,7 +756,7 @@ func (i *Index) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.
 
 	// The TagSets have been created, as a map of TagSets. Just send
 	// the values back as a slice, sorting for consistency.
-	sortedTagsSets := make([]*influxql.TagSet, 0, len(tagSets))
+	sortedTagsSets := make([]*query.TagSet, 0, len(tagSets))
 	for _, v := range tagSets {
 		sortedTagsSets = append(sortedTagsSets, v)
 	}
@@ -772,7 +807,7 @@ func (i *Index) UnassignShard(k string, shardID uint64) error {
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.
-func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
 	// NOTE: The iterator handles releasing the file set.
 	fs := i.RetainFileSet()
 	return newSeriesPointIterator(fs, i.fieldset, opt), nil
@@ -1069,18 +1104,18 @@ type seriesPointIterator struct {
 	fieldset *tsdb.MeasurementFieldSet
 	mitr     MeasurementIterator
 	sitr     SeriesIterator
-	opt      influxql.IteratorOptions
+	opt      query.IteratorOptions
 
-	point influxql.FloatPoint // reusable point
+	point query.FloatPoint // reusable point
 }
 
 // newSeriesPointIterator returns a new instance of seriesPointIterator.
-func newSeriesPointIterator(fs *FileSet, fieldset *tsdb.MeasurementFieldSet, opt influxql.IteratorOptions) *seriesPointIterator {
+func newSeriesPointIterator(fs *FileSet, fieldset *tsdb.MeasurementFieldSet, opt query.IteratorOptions) *seriesPointIterator {
 	return &seriesPointIterator{
 		fs:       fs,
 		fieldset: fieldset,
 		mitr:     fs.MeasurementIterator(),
-		point: influxql.FloatPoint{
+		point: query.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
 		},
 		opt: opt,
@@ -1088,7 +1123,7 @@ func newSeriesPointIterator(fs *FileSet, fieldset *tsdb.MeasurementFieldSet, opt
 }
 
 // Stats returns stats about the points processed.
-func (itr *seriesPointIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
 
 // Close closes the iterator.
 func (itr *seriesPointIterator) Close() error {
@@ -1097,7 +1132,7 @@ func (itr *seriesPointIterator) Close() error {
 }
 
 // Next emits the next point in the iterator.
-func (itr *seriesPointIterator) Next() (*influxql.FloatPoint, error) {
+func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 	for {
 		// Create new series iterator, if necessary.
 		// Exit if there are no measurements remaining.

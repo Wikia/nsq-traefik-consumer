@@ -1,0 +1,6 @@
+.tmp/
+coverage/
+dist/
+node_modules/
+.sass-cache/
+

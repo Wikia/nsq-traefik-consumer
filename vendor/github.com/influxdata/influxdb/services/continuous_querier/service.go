@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/uber-go/zap"
 )
@@ -80,7 +81,7 @@ func (nullMonitor) WritePoints(models.Points) error { return nil }
 // Service manages continuous query execution.
 type Service struct {
 	MetaClient    metaClient
-	QueryExecutor *influxql.QueryExecutor
+	QueryExecutor *query.QueryExecutor
 	Monitor       Monitor
 	Config        *Config
 	RunInterval   time.Duration
@@ -180,7 +181,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 		// Find the requested database.
 		db := s.MetaClient.Database(database)
 		if db == nil {
-			return influxql.ErrDatabaseNotFound(database)
+			return query.ErrDatabaseNotFound(database)
 		}
 		dbs = append(dbs, *db)
 	} else {
@@ -197,9 +198,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 			if name == "" || cq.Name == name {
 				// Remove the last run time for the CQ
 				id := fmt.Sprintf("%s%s%s", db.Name, idDelimiter, cq.Name)
-				if _, ok := s.lastRuns[id]; ok {
-					delete(s.lastRuns, id)
-				}
+				delete(s.lastRuns, id)
 			}
 		}
 	}
@@ -287,6 +286,12 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		return false, err
 	}
 
+	// Set the time zone on the now time if the CQ has one. Otherwise, force UTC.
+	now = now.UTC()
+	if cq.q.Location != nil {
+		now = now.In(cq.q.Location)
+	}
+
 	// Get the last time this CQ was run from the service's cache.
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -327,7 +332,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// We're about to run the query so store the current time closest to the nearest interval.
 	// If all is going well, this time should be the same as nextRun.
-	cq.LastRun = now.Add(-offset).Truncate(resampleEvery).Add(offset)
+	cq.LastRun = truncate(now.Add(-offset), resampleEvery).Add(offset)
 	s.lastRuns[id] = cq.LastRun
 
 	// Retrieve the oldest interval we should calculate based on the next time
@@ -348,8 +353,8 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	startTime := nextRun.Add(interval - resampleFor - offset - 1).Truncate(interval).Add(offset)
-	endTime := now.Add(interval - resampleEvery - offset).Truncate(interval).Add(offset)
+	startTime := truncate(nextRun.Add(interval-resampleFor-offset-1), interval).Add(offset)
+	endTime := truncate(now.Add(interval-resampleEvery-offset), interval).Add(offset)
 	if !endTime.After(startTime) {
 		// Exit early since there is no time interval.
 		return false, nil
@@ -403,7 +408,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 }
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
-func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *influxql.Result {
+func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *query.Result {
 	// Wrap the CQ's inner SELECT statement in a Query for the QueryExecutor.
 	q := &influxql.Query{
 		Statements: influxql.Statements([]influxql.Statement{cq.q}),
@@ -413,7 +418,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *influxq
 	defer close(closing)
 
 	// Execute the SELECT.
-	ch := s.QueryExecutor.ExecuteQuery(q, influxql.ExecutionOptions{
+	ch := s.QueryExecutor.ExecuteQuery(q, query.ExecutionOptions{
 		Database: cq.Database,
 	}, closing)
 
@@ -482,25 +487,40 @@ func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*Contin
 // lastRunTime of the CQ and the rules for when to run set through the query to determine
 // if this CQ should be run.
 func (cq *ContinuousQuery) shouldRunContinuousQuery(now time.Time, interval time.Duration) (bool, time.Time, error) {
-	// if it's not aggregated we don't run it
+	// If it's not aggregated, do not run the query.
 	if cq.q.IsRawQuery {
 		return false, cq.LastRun, errors.New("continuous queries must be aggregate queries")
 	}
 
-	// allow the interval to be overwritten by the query's resample options
+	// Override the query's default run interval with the resample options.
 	resampleEvery := interval
 	if cq.Resample.Every != 0 {
 		resampleEvery = cq.Resample.Every
 	}
 
-	// if we've passed the amount of time since the last run, or there was no last run, do it up
+	// Determine if we should run the continuous query based on the last time it ran.
+	// If the query never ran, execute it using the current time.
 	if cq.HasRun {
+		// Retrieve the zone offset for the previous window.
+		_, startOffset := cq.LastRun.Add(-1).Zone()
 		nextRun := cq.LastRun.Add(resampleEvery)
+		// Retrieve the end zone offset for the end of the current interval.
+		if _, endOffset := nextRun.Add(-1).Zone(); startOffset != endOffset {
+			diff := int64(startOffset-endOffset) * int64(time.Second)
+			if abs(diff) < int64(resampleEvery) {
+				nextRun = nextRun.Add(time.Duration(diff))
+			}
+		}
 		if nextRun.UnixNano() <= now.UnixNano() {
 			return true, nextRun, nil
 		}
 	} else {
-		return true, now, nil
+		// Retrieve the location from the CQ.
+		loc := cq.q.Location
+		if loc == nil {
+			loc = time.UTC
+		}
+		return true, now.In(loc), nil
 	}
 
 	return false, cq.LastRun, nil
@@ -511,4 +531,38 @@ func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
+}
+
+// truncate truncates the time based on the unix timestamp instead of the
+// Go time library. The Go time library has the start of the week on Monday
+// while the start of the week for the unix timestamp is a Thursday.
+func truncate(ts time.Time, d time.Duration) time.Time {
+	t := ts.UnixNano()
+	offset := zone(ts)
+	dt := (t + offset) % int64(d)
+	if dt < 0 {
+		// Negative modulo rounds up instead of down, so offset
+		// with the duration.
+		dt += int64(d)
+	}
+	ts = time.Unix(0, t-dt).In(ts.Location())
+	if adjustedOffset := zone(ts); adjustedOffset != offset {
+		diff := offset - adjustedOffset
+		if abs(diff) < int64(d) {
+			ts = ts.Add(time.Duration(diff))
+		}
+	}
+	return ts
+}
+
+func zone(ts time.Time) int64 {
+	_, offset := ts.Zone()
+	return int64(offset) * int64(time.Second)
+}
+
+func abs(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
