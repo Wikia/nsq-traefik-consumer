@@ -13,7 +13,7 @@ spec:
       containers:
       - name: nsq-traefik-consumer
       #TODO proper versioning!!!!!!
-        image: artifactory.wikia-inc.com/platform/nsq-traefik-consumer:v0.5.0
+        image: artifactory.wikia-inc.com/platform/nsq-traefik-consumer:v0.6.0
         args: ["--config", "/etc/nsq-traefik-consumer/config.yaml", "run"]
         volumeMounts:
         - name: config-volume
