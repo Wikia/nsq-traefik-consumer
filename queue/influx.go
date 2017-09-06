@@ -7,9 +7,9 @@ import (
 
 	"container/list"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/influxdata/influxdb/client/v2"
+	stats "github.com/rcrowley/go-metrics"
 )
 
 var influxClient client.Client
@@ -66,8 +66,9 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 		return err
 	}
 
+	gauge := stats.GetOrRegisterGauge("buffer_size", stats.DefaultRegistry)
+
 	cnt := 0
-	curCnt := 0
 	for {
 		if metrics.Metrics.Len() == 0 {
 			break
@@ -79,6 +80,7 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 		element := metrics.Metrics.Front()
 		metrics.Metrics.Remove(element)
 		metrics.Unlock()
+		gauge.Update(int64(metrics.Metrics.Len()))
 
 		bucket, _ = element.Value.(client.BatchPoints)
 		bucket.SetDatabase(config.Database)
@@ -89,13 +91,10 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 		if err != nil {
 			common.Log.WithError(err).Error("Error sending metrics to Influx DB")
 		}
-		curCnt = len(bucket.Points())
-		cnt += curCnt
 
-		common.Log.WithFields(log.Fields{
-			"count":        cnt,
-			"buckets_left": metrics.Metrics.Len(),
-		}).Info("Wrote metrics to InfluxDB")
+		counter := stats.GetOrRegisterCounter("points_sent", stats.DefaultRegistry)
+		cnt += len(bucket.Points())
+		counter.Inc(int64(len(bucket.Points())))
 	}
 
 	common.Log.WithField("count", cnt).Info("Finished writing metrics to InfluxDB")
