@@ -1,0 +1,14 @@
+/dist
+/autogen/gen.go
+.idea
+.intellij
+*.iml
+/traefik
+/traefik.toml
+/static/
+.vscode/
+/site/
+*.log
+*.exe
+.DS_Store
+/example/acme/acme.json

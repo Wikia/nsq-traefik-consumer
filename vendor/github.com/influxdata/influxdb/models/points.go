@@ -137,6 +137,9 @@ const (
 
 	// Empty is used to indicate that there is no field.
 	Empty
+
+	// Unsigned indicates the field's type is an unsigned integer.
+	Unsigned
 )
 
 // FieldIterator provides a low-allocation interface to iterate through a point's fields.
@@ -155,6 +158,9 @@ type FieldIterator interface {
 
 	// IntegerValue returns the integer value of the current field.
 	IntegerValue() (int64, error)
+
+	// UnsignedValue returns the unsigned value of the current field.
+	UnsignedValue() (uint64, error)
 
 	// BooleanValue returns the boolean value of the current field.
 	BooleanValue() (bool, error)
@@ -204,6 +210,12 @@ type point struct {
 
 	it fieldIterator
 }
+
+// type assertions
+var (
+	_ Point         = (*point)(nil)
+	_ FieldIterator = (*point)(nil)
+)
 
 const (
 	// the number of characters for the largest possible int64 (9223372036854775807)
@@ -1315,6 +1327,11 @@ func NewPointFromBytes(b []byte) (Point, error) {
 			if err != nil {
 				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
 			}
+		case Unsigned:
+			_, err := iter.UnsignedValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
 		case String:
 			// Skip since this won't return an error
 		case Boolean:
@@ -1678,6 +1695,12 @@ func (p *point) unmarshalBinary() (Fields, error) {
 				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
 			}
 			fields[string(iter.FieldKey())] = v
+		case Unsigned:
+			v, err := iter.UnsignedValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+			fields[string(iter.FieldKey())] = v
 		case String:
 			fields[string(iter.FieldKey())] = iter.StringValue()
 		case Boolean:
@@ -1801,6 +1824,30 @@ func NewTags(m map[string]string) Tags {
 	}
 	sort.Sort(a)
 	return a
+}
+
+// Keys returns the list of keys for a tag set.
+func (a Tags) Keys() []string {
+	if len(a) == 0 {
+		return nil
+	}
+	keys := make([]string, len(a))
+	for i, tag := range a {
+		keys[i] = string(tag.Key)
+	}
+	return keys
+}
+
+// Values returns the list of values for a tag set.
+func (a Tags) Values() []string {
+	if len(a) == 0 {
+		return nil
+	}
+	values := make([]string, len(a))
+	for i, tag := range a {
+		values[i] = string(tag.Value)
+	}
+	return values
 }
 
 // String returns the string representation of the tags.
@@ -2106,6 +2153,15 @@ func (p *point) IntegerValue() (int64, error) {
 	n, err := parseIntBytes(p.it.valueBuf, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("unable to parse integer value %q: %v", p.it.valueBuf, err)
+	}
+	return n, nil
+}
+
+// UnsignedValue returns the unsigned value of the current field.
+func (p *point) UnsignedValue() (uint64, error) {
+	n, err := parseUintBytes(p.it.valueBuf, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("unable to parse unsigned value %q: %v", p.it.valueBuf, err)
 	}
 	return n, nil
 }

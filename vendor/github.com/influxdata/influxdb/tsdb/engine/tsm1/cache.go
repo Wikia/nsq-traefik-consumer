@@ -168,13 +168,13 @@ const (
 
 // storer is the interface that descibes a cache's store.
 type storer interface {
-	entry(key string) (*entry, bool)                // Get an entry by its key.
-	write(key string, values Values) error          // Write an entry to the store.
-	add(key string, entry *entry)                   // Add a new entry to the store.
-	remove(key string)                              // Remove an entry from the store.
-	keys(sorted bool) []string                      // Return an optionally sorted slice of entry keys.
-	apply(f func(string, *entry) error) error       // Apply f to all entries in the store in parallel.
-	applySerial(f func(string, *entry) error) error // Apply f to all entries in serial.
+	entry(key []byte) *entry                        // Get an entry by its key.
+	write(key []byte, values Values) error          // Write an entry to the store.
+	add(key []byte, entry *entry)                   // Add a new entry to the store.
+	remove(key []byte)                              // Remove an entry from the store.
+	keys(sorted bool) [][]byte                      // Return an optionally sorted slice of entry keys.
+	apply(f func([]byte, *entry) error) error       // Apply f to all entries in the store in parallel.
+	applySerial(f func([]byte, *entry) error) error // Apply f to all entries in serial.
 	reset()                                         // Reset the store to an initial unused state.
 }
 
@@ -255,7 +255,7 @@ func (c *Cache) Statistics(tags map[string]string) []models.Statistic {
 
 // Write writes the set of values for the key to the cache. This function is goroutine-safe.
 // It returns an error if the cache will exceed its max size by adding the new values.
-func (c *Cache) Write(key string, values []Value) error {
+func (c *Cache) Write(key []byte, values []Value) error {
 	addedSize := uint64(Values(values).Size())
 
 	// Enough room in the cache?
@@ -307,7 +307,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	// We'll optimistially set size here, and then decrement it for write errors.
 	c.increaseSize(addedSize)
 	for k, v := range values {
-		if err := store.write(k, v); err != nil {
+		if err := store.write([]byte(k), v); err != nil {
 			// The write failed, hold onto the error and adjust the size delta.
 			werr = err
 			addedSize -= uint64(Values(v).Size())
@@ -388,7 +388,7 @@ func (c *Cache) Deduplicate() {
 
 	// Apply a function that simply calls deduplicate on each entry in the ring.
 	// apply cannot return an error in this invocation.
-	_ = store.apply(func(_ string, e *entry) error { e.deduplicate(); return nil })
+	_ = store.apply(func(_ []byte, e *entry) error { e.deduplicate(); return nil })
 }
 
 // ClearSnapshot removes the snapshot cache from the list of flushing caches and
@@ -436,7 +436,7 @@ func (c *Cache) MaxSize() uint64 {
 }
 
 // Keys returns a sorted slice of all keys under management by the cache.
-func (c *Cache) Keys() []string {
+func (c *Cache) Keys() [][]byte {
 	c.mu.RLock()
 	store := c.store
 	c.mu.RUnlock()
@@ -445,7 +445,7 @@ func (c *Cache) Keys() []string {
 
 // unsortedKeys returns a slice of all keys under management by the cache. The
 // keys are not sorted.
-func (c *Cache) unsortedKeys() []string {
+func (c *Cache) unsortedKeys() [][]byte {
 	c.mu.RLock()
 	store := c.store
 	c.mu.RUnlock()
@@ -453,17 +453,17 @@ func (c *Cache) unsortedKeys() []string {
 }
 
 // Values returns a copy of all values, deduped and sorted, for the given key.
-func (c *Cache) Values(key string) Values {
+func (c *Cache) Values(key []byte) Values {
 	var snapshotEntries *entry
 
 	c.mu.RLock()
-	e, ok := c.store.entry(key)
+	e := c.store.entry(key)
 	if c.snapshot != nil {
-		snapshotEntries, _ = c.snapshot.store.entry(key)
+		snapshotEntries = c.snapshot.store.entry(key)
 	}
 	c.mu.RUnlock()
 
-	if !ok {
+	if e == nil {
 		if snapshotEntries == nil {
 			// No values in hot cache or snapshots.
 			return nil
@@ -510,7 +510,7 @@ func (c *Cache) Values(key string) Values {
 }
 
 // Delete removes all values for the given keys from the cache.
-func (c *Cache) Delete(keys []string) {
+func (c *Cache) Delete(keys [][]byte) {
 	c.DeleteRange(keys, math.MinInt64, math.MaxInt64)
 }
 
@@ -518,14 +518,14 @@ func (c *Cache) Delete(keys []string) {
 // with timestamps between between min and max from the cache.
 //
 // TODO(edd): Lock usage could possibly be optimised if necessary.
-func (c *Cache) DeleteRange(keys []string, min, max int64) {
+func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for _, k := range keys {
 		// Make sure key exist in the cache, skip if it does not
-		e, ok := c.store.entry(k)
-		if !ok {
+		e := c.store.entry(k)
+		if e == nil {
 			continue
 		}
 
@@ -558,8 +558,8 @@ func (c *Cache) SetMaxSize(size uint64) {
 // values returns the values for the key. It assumes the data is already sorted.
 // It doesn't lock the cache but it does read-lock the entry if there is one for the key.
 // values should only be used in compact.go in the CacheKeyIterator.
-func (c *Cache) values(key string) Values {
-	e, _ := c.store.entry(key)
+func (c *Cache) values(key []byte) Values {
+	e := c.store.entry(key)
 	if e == nil {
 		return nil
 	}
@@ -572,7 +572,7 @@ func (c *Cache) values(key string) Values {
 // ApplyEntryFn applies the function f to each entry in the Cache.
 // ApplyEntryFn calls f on each entry in turn, within the same goroutine.
 // It is safe for use by multiple goroutines.
-func (c *Cache) ApplyEntryFn(f func(key string, entry *entry) error) error {
+func (c *Cache) ApplyEntryFn(f func(key []byte, entry *entry) error) error {
 	c.mu.RLock()
 	store := c.store
 	c.mu.RUnlock()

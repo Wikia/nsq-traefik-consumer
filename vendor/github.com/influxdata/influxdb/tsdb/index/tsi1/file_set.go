@@ -78,7 +78,6 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Ensure all old files are contiguous.
 	for j := range oldFiles {
-		println("dbg/replace", len(fs.files), "//", i, j)
 		if fs.files[i+j] != oldFiles[j] {
 			panic(fmt.Sprintf("cannot replace non-contiguous files: subset=%+v, fileset=%+v", Files(oldFiles).IDs(), Files(fs.files).IDs()))
 		}
@@ -280,6 +279,50 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 	}
 
 	return nil, fmt.Errorf("%#v", expr)
+}
+
+// tagValuesByKeyAndExpr retrieves tag values for the provided tag keys.
+//
+// tagValuesByKeyAndExpr returns sets of values for each key, indexable by the
+// position of the tag key in the keys argument.
+//
+// N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
+// lexicographic order.
+func (fs *FileSet) tagValuesByKeyAndExpr(name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
+	itr, err := fs.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+
+	keyIdxs := make(map[string]int, len(keys))
+	for ki, key := range keys {
+		keyIdxs[key] = ki
+
+		// Check that keys are in order.
+		if ki > 0 && key < keys[ki-1] {
+			return nil, fmt.Errorf("keys %v are not in ascending order", keys)
+		}
+	}
+
+	resultSet := make([]map[string]struct{}, len(keys))
+	for i := 0; i < len(resultSet); i++ {
+		resultSet[i] = make(map[string]struct{})
+	}
+
+	// Iterate all series to collect tag values.
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		for _, t := range e.Tags() {
+			if idx, ok := keyIdxs[string(t.Key)]; ok {
+				resultSet[idx][string(t.Value)] = struct{}{}
+			} else if string(t.Key) > keys[len(keys)-1] {
+				// The tag key is > the largest key we're interested in.
+				break
+			}
+		}
+	}
+	return resultSet, nil
 }
 
 // tagKeysByFilter will filter the tag keys for the measurement.
@@ -693,7 +736,7 @@ func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, e
 // call is equivalent to MeasurementSeriesIterator().
 func (fs *FileSet) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) (SeriesIterator, error) {
 	// Return all series for the measurement if there are no tag expressions.
-	if expr == nil || influxql.OnlyTimeExpr(expr) {
+	if expr == nil {
 		return fs.MeasurementSeriesIterator(name), nil
 	}
 	return fs.seriesByExprIterator(name, expr, fieldset.CreateFieldsIfNotExists(name))
@@ -779,11 +822,6 @@ func (fs *FileSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 			return nil, fmt.Errorf("invalid expression: %s", n.String())
 		}
 		value = n.LHS
-	}
-
-	// For time literals, return all series and "true" as the filter.
-	if _, ok := value.(*influxql.TimeLiteral); ok || key.Val == "time" {
-		return newSeriesExprIterator(fs.MeasurementSeriesIterator(name), &influxql.BooleanLiteral{Val: true}), nil
 	}
 
 	// For fields, return all series from this measurement.

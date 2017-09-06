@@ -1,0 +1,15 @@
+defaultEntryPoints = ["http"]
+
+logLevel = "DEBUG"
+
+[entryPoints]
+  [entryPoints.http]
+  address = ":8000"
+
+[docker]
+
+# It's dynamagic !
+endpoint = "{{.DockerHost}}"
+
+domain = "docker.localhost"
+exposedbydefault = true
