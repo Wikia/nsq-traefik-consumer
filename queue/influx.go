@@ -13,18 +13,12 @@ import (
 	stats "github.com/rcrowley/go-metrics"
 )
 
-var influxClient client.Client
-
 type MetricsBuffer struct {
 	Metrics *list.List
 	sync.RWMutex
 }
 
 func GetInfluxClient(config common.InfluxDbConfig) (client.Client, error) {
-	if influxClient != nil {
-		return influxClient, nil
-	}
-
 	clientConfig := client.HTTPConfig{
 		Addr:     config.Address,
 		Username: config.Username,
@@ -66,6 +60,8 @@ func sendMetrics(config common.InfluxDbConfig, metrics *MetricsBuffer) error {
 	if err != nil {
 		return err
 	}
+
+	defer influxClient.Close()
 
 	gauge := stats.GetOrRegisterGauge("buffer_size", stats.DefaultRegistry)
 	counter := stats.GetOrRegisterCounter("points_sent", stats.DefaultRegistry)
