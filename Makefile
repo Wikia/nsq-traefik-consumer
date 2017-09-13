@@ -46,7 +46,7 @@ else
 endif
 
 ifeq ($(VERSION_GIT),)
-	VERSION_GIT = "vv0.6.0"
+	VERSION_GIT = "vv0.6.1"
 endif
 
 ifeq ($(OS),Windows_NT)
