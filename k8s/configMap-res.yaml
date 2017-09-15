@@ -7,7 +7,7 @@ data:
   config.yaml: |
     LogLevel: warning
     Nsq:
-      eddresses:
+      Addresses:
           - http://nsqlookupd1.res.k8s.wikia.net
           - http://nsqlookupd2.res.k8s.wikia.net
       Topic: logstash-k8s
