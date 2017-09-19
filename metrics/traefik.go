@@ -187,7 +187,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Debug("Entry below threshold (sampling) - skipping")
-			continue
+			return result, nil
 		}
 
 		values, err := mp.getMetrics(entry, mappedMatches)
@@ -196,7 +196,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Error("Error processing log")
-			continue
+			return nil, err
 		}
 
 		common.Log.WithFields(log.Fields{
@@ -219,10 +219,11 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 				"tags":        tags,
 				"measurement": measurement,
 			}).WithError(err).Error("Error creating time point from log entry")
-			continue
+			return nil, err
 		}
 
 		result.AddPoint(pt)
+		return result, nil
 	}
 
 	return result, nil
