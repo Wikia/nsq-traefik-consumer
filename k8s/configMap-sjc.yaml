@@ -41,3 +41,10 @@ data:
       - Id: helios-dev-k8s
         FrontendRegexp: ^prod\.sjc\.k8s\.wikia\.net/helios
         SamplingRate: 1.0
+      - Id: amp-services
+        FrontendRegexp: ^services\.wikia\.com/amp
+        SamplingRate: 1.0
+      - Id: amp
+        FrontendRegexp: ^amp\.wikia\.com
+        SamplingRate: 1.0
+
