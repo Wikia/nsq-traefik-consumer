@@ -342,11 +342,7 @@ func (i *Index) prependActiveLogFile() error {
 	i.activeLogFile = f
 
 	// Prepend and generate new fileset.
-	fs, err := i.fileSet.Prepend(f)
-	if err != nil {
-		return err
-	}
-	i.fileSet = fs
+	i.fileSet = i.fileSet.PrependLogFile(f)
 
 	// Write new manifest.
 	if err := i.writeManifestFile(); err != nil {
@@ -723,6 +719,10 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 
 	if itr != nil {
 		for e := itr.Next(); e != nil; e = itr.Next() {
+			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, e.Tags()) {
+				continue
+			}
+
 			tags := make(map[string]string, len(opt.Dimensions))
 
 			// Build the TagSet for this series.
@@ -971,6 +971,8 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 		}
 	}
 }
+
+func (i *Index) Rebuild() {}
 
 func (i *Index) CheckLogFile() error {
 	// Check log file size under read lock.
