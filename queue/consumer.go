@@ -47,7 +47,7 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 
 	return func(message *nsq.Message) error {
 		common.Log.WithField("message_id", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
-		entry := model.TraefikLog{}
+		entry := model.LogEntry{}
 		err := json.Unmarshal(message.Body, &entry)
 		if err != nil {
 			common.Log.WithError(err).WithField("body", string(message.Body)).Errorf("Error unmarshaling message")
@@ -92,7 +92,8 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 				return nil
 			}
 
-			processedMetrics, err := processor.Process(entry, message.Timestamp, measurement)
+			annotationConfig.MetricsType = "access_log_as_json"
+			processedMetrics, err := processor.Process(entry, annotationConfig.MetricsType, message.Timestamp, measurement)
 
 			if err != nil {
 				common.Log.WithError(err).Error("Error processing metrics")
