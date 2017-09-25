@@ -22,6 +22,36 @@ data:
       Measurement: access_logs
       RetentionPolicy: default
       BatchSize: 100
+    Fields:
+      - duration
+      - backend_url
+      - backend_address
+      - client_address
+      - client_host
+      - client_port
+      - client_username
+      - request_address
+      - request_host
+      - request_port
+      - request_method
+      - request_path
+      - request_protocol
+    #  - request_line
+      - request_content_size
+      - origin_duration
+      - origin_content_size
+      - origin_status
+    #  - origin_status_line
+      - downstream_status
+    #  - downstream_status_line
+      - downstream_content_size
+      - request_count
+      - gzip_ratio
+      - overhead
+      - retry_attempts
+      - original_timestamp
+      - referrer
+      - client_user_agent
     Rules:
       - Id: services-all
         FrontendRegexp: ^.+\.k8s\.wikia\.net
