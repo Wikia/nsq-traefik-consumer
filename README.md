@@ -26,8 +26,8 @@ Annotation should have proper fields with proper values defined. Here is the sam
 
 * `container_name` needs to be specified to properly indicate POD running Traefik instance (there can be more containers per POD).
 * `type` specifies the log format application expects when parsing events from NSQ. Possible values are:
-    ** access_log_combined (legacy access log compatible with Apache/Nginx)
-    ** access_log_as_json (introduced in Traefik 1.4)
+    - access_log_combined (legacy access log compatible with Apache/Nginx)
+    - access_log_as_json (introduced in Traefik 1.4)
  
 Since Traefik sends access logs with only precision of 1 second this tools uses time of processing as
 a timestamp sent to InfluxDB. This may cause offsets and delays or even data being compressed when
