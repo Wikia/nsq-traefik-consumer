@@ -7,9 +7,11 @@ import (
 
 	"fmt"
 
-	"strconv"
-
 	"time"
+
+	"encoding/json"
+
+	"strconv"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
@@ -17,7 +19,12 @@ import (
 	"github.com/influxdata/influxdb/client/v2"
 )
 
-type RuleFilter func(model.TraefikLog) bool
+const (
+	Combined = "access_log_combined"
+	JSON     = "access_log_as_json"
+)
+
+type RuleFilter func(model.LogEntry) bool
 
 type ProcessRule struct {
 	Id           string
@@ -29,12 +36,14 @@ type ProcessRule struct {
 type TraefikMetricProcessor struct {
 	Rules           map[*regexp.Regexp]ProcessRule
 	randomGenerator *rand.Rand
+	fields          []string
 }
 
-func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProcessor, error) {
+func NewTraefikMetricProcessor(config []common.RulesConfig, fields []string) (*TraefikMetricProcessor, error) {
 	mp := TraefikMetricProcessor{Rules: map[*regexp.Regexp]ProcessRule{}}
 	s1 := rand.NewSource(time.Now().UnixNano())
 	mp.randomGenerator = rand.New(s1)
+	mp.fields = fields
 
 	for _, cfg := range config {
 		rule := ProcessRule{}
@@ -60,7 +69,7 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 		if err != nil {
 			return nil, err
 		}
-		rule.Filter = func(traefikLog model.TraefikLog) bool { return mp.randomGenerator.Float64() < cfg.Sampling }
+		rule.Filter = func(traefikLog model.LogEntry) bool { return mp.randomGenerator.Float64() < cfg.Sampling }
 
 		_, has := mp.Rules[rxp]
 		if has {
@@ -76,110 +85,136 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 	return &mp, nil
 }
 
-func (mp TraefikMetricProcessor) getMetrics(logEntry model.TraefikLog, values map[string]string) (map[string]interface{}, error) {
-	m := map[string]interface{}{}
+func parseCommonLog(entry model.LogEntry) (*model.TraefikAccessLog, error) {
+	matches := ApacheCombinedLogRegex.FindStringSubmatch(entry.Log)
 
-	// status codes
-	integer, err := strconv.ParseInt(values["status"], 10, 64)
-
-	if err != nil {
-		return nil, err
+	if len(matches) != 15 {
+		return nil, fmt.Errorf("invalid log format - did not match necessary fields (matched fields number: %d)", len(matches))
 	}
 
-	m["response_code"] = integer
+	logEntry := model.TraefikAccessLog{}
+	for idx, name := range ApacheCombinedLogRegex.SubexpNames() {
+		if idx == 0 {
+			continue
+		}
 
-	// response time
-	integer, err = strconv.ParseInt(values["request_time"], 10, 64)
-
-	if err != nil {
-		common.Log.WithError(err).WithField("value", values["request_time"]).Error("Error parsing request time value as integer")
+		switch name {
+		case "client_host":
+			logEntry.ClientHost = matches[idx]
+		case "username":
+			logEntry.ClientUsername = matches[idx]
+		case "timestamp":
+			value, err := time.Parse("02/Jan/2006:15:04:05 -0700", matches[idx])
+			if err != nil {
+				log.WithError(err).WithField("timestamp", matches[idx]).Error("could not parse timestamp")
+				return nil, err
+			}
+			logEntry.OriginalTimestamp = value
+		case "method":
+			logEntry.RequestMethod = matches[idx]
+		case "path":
+			logEntry.RequestPath = matches[idx]
+		case "protocol":
+			logEntry.RequestProtocol = matches[idx]
+		case "status":
+			value, err := strconv.ParseInt(matches[idx], 10, 64)
+			if err != nil {
+				log.WithError(err).WithField("status", matches[idx]).Error("could not parse http status code")
+				return nil, err
+			}
+			logEntry.OriginStatus = value
+		case "content_size":
+			value, err := strconv.ParseInt(matches[idx], 10, 64)
+			if err != nil {
+				log.WithError(err).WithField("content_size", matches[idx]).Error("could not parse content size")
+				return nil, err
+			}
+			logEntry.OriginContentSize = value
+		case "referrer":
+			logEntry.Referrer = matches[idx]
+		case "useragent":
+			logEntry.ClientUserAgent = matches[idx]
+		case "request_count":
+			value, err := strconv.ParseInt(matches[idx], 10, 64)
+			if err != nil {
+				log.WithError(err).WithField("request_count", matches[idx]).Error("error parsing request count")
+				return nil, err
+			}
+			logEntry.RequestCount = value
+		case "frontend_name":
+			logEntry.FrontendName = matches[idx]
+		case "backend_url":
+			logEntry.BackendName = matches[idx]
+		case "request_time":
+			value, err := time.ParseDuration(matches[idx])
+			if err != nil {
+				log.WithError(err).WithField("request_time", matches[idx]).Error("could not parse request time")
+				return nil, err
+			}
+			logEntry.Duration = value
+		}
 	}
 
-	m["request_time"] = integer
-
-	// request count
-	integer, err = strconv.ParseInt(values["request_count"], 10, 64)
-
-	if err != nil {
-		return nil, err
-	}
-
-	m["request_count"] = integer
-
-	// content size
-	integer, err = strconv.ParseInt(values["content_size"], 10, 64)
-
-	if err != nil {
-		return nil, err
-	}
-
-	m["response_size"] = integer
-
-	logTimestamp, err := time.Parse("02/Jan/2006:15:04:05 -0700", values["timestamp"])
-
-	if err != nil {
-		common.Log.WithError(err).WithField("value", values["timestamp"]).Error("Error parsing timestamp for log entry")
-
-		return nil, err
-	}
-
-	m["log_timestamp"] = logTimestamp
-	m["backend_url"] = values["backend_url"]
-	m["request_method"] = values["method"]
-	m["client_username"] = values["username"]
-	m["http_referer"] = values["referer"]
-	m["http_user_agent"] = values["useragent"]
-	m["request_url"] = values["path"]
-
-	return m, nil
+	return &logEntry, nil
 }
 
-func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64, measurement string) (client.BatchPoints, error) {
+func parseJsonLog(entry model.LogEntry) (*model.TraefikAccessLog, error) {
+	logEntry := model.TraefikAccessLog{}
+
+	err := json.Unmarshal([]byte(entry.Log), &logEntry)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &logEntry, nil
+}
+
+func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string, timestamp int64, measurement string) (client.BatchPoints, error) {
 	result, err := client.NewBatchPoints(client.BatchPointsConfig{})
 	if err != nil {
 		return nil, err
 	}
 
-	matches := ApacheCombinedLogRegex.FindStringSubmatch(entry.Log)
-	mappedMatches := map[string]string{}
+	var parsedLog *model.TraefikAccessLog
 
-	if len(matches) != 15 {
-		common.Log.WithFields(log.Fields{
-			"matches_cnt": len(matches),
-			"entry":       entry.Log,
-		}).Error("Error matching Traefik log")
-
-		return nil, fmt.Errorf("Error matching Traefik log")
+	switch logFormat {
+	case Combined:
+		parsedLog, err = parseCommonLog(entry)
+	case JSON:
+		parsedLog, err = parseJsonLog(entry)
+	default:
+		return nil, fmt.Errorf("unknown log format: %s", logFormat)
 	}
 
-	for idx, name := range ApacheCombinedLogRegex.SubexpNames() {
-		if idx == 0 {
-			continue
-		}
-		mappedMatches[name] = matches[idx]
+	if err != nil {
+		common.Log.WithFields(log.Fields{
+			"entry": entry.Log,
+		}).WithError(err).Error("could not parse Traefik log")
+		return nil, fmt.Errorf("could not parse Traefik log")
 	}
 
 	// filtering and rule processing
 	for rxp, rule := range mp.Rules {
-		if !rxp.MatchString(mappedMatches["frontend_name"]) {
+		if !rxp.MatchString(parsedLog.FrontendName) {
 			common.Log.WithFields(log.Fields{
-				"entry":   mappedMatches,
+				"entry":   parsedLog,
 				"rule_id": rule.Id,
 			}).Debug("Frontend name doesn't match regex - skipping")
 			continue
 		}
 
-		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(mappedMatches["path"]) {
+		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(parsedLog.RequestPath) {
 			common.Log.WithFields(log.Fields{
-				"entry":   mappedMatches,
+				"entry":   parsedLog,
 				"rule_id": rule.Id,
 			}).Debug("Path doesn't match regex - skipping")
 			continue
 		}
 
-		if rule.MethodRegexp != nil && !rule.MethodRegexp.MatchString(mappedMatches["method"]) {
+		if rule.MethodRegexp != nil && !rule.MethodRegexp.MatchString(parsedLog.RequestMethod) {
 			common.Log.WithFields(log.Fields{
-				"entry":   mappedMatches,
+				"entry":   parsedLog,
 				"rule_id": rule.Id,
 			}).Debug("Method doesn't match regex - skipping")
 			continue
@@ -187,35 +222,27 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 
 		if !rule.Filter(entry) {
 			common.Log.WithFields(log.Fields{
-				"entry":   mappedMatches,
+				"entry":   parsedLog,
 				"rule_id": rule.Id,
 			}).Debug("Entry below threshold (sampling) - skipping")
 			continue
 		}
 
-		values, err := mp.getMetrics(entry, mappedMatches)
-		if err != nil {
-			common.Log.WithError(err).WithFields(log.Fields{
-				"entry":   mappedMatches,
-				"rule_id": rule.Id,
-			}).Error("Error processing log")
-			continue
+		tags := parsedLog.GetTags()
+		tags["host_name"] = entry.Kubernetes.Host
+		tags["cluster_name"] = entry.KubernetesClusterName
+		tags["data_center"] = entry.Datacenter
+		tags["rule_id"] = rule.Id
+		values := parsedLog.GetValues(mp.fields)
+
+		var timestamp time.Time
+		if parsedLog.StartUTC.IsZero() {
+			timestamp = time.Now().UTC()
+		} else {
+			timestamp = parsedLog.StartUTC
 		}
 
-		common.Log.WithFields(log.Fields{
-			"metrics": values,
-			"rule_id": rule.Id,
-		}).Debug("Successfully derived metrics")
-
-		tags := map[string]string{
-			"frontend_name": mappedMatches["frontend_name"],
-			"host_name":     entry.Kubernetes.Host,
-			"cluster_name":  entry.KubernetesClusterName,
-			"data_center":   entry.Datacenter,
-			"rule_id":       rule.Id,
-		}
-
-		pt, err := client.NewPoint(measurement, tags, values, time.Now())
+		pt, err := client.NewPoint(measurement, tags, values, timestamp)
 		if err != nil {
 			common.Log.WithFields(log.Fields{
 				"values":      values,

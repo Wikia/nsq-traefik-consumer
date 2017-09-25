@@ -36,8 +36,8 @@ func NewConsumer(config common.NsqConfig) (*nsq.Consumer, error) {
 	return consumer, nil
 }
 
-func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, metricsConfig []common.RulesConfig, metricsBuffer *MetricsBuffer) nsq.HandlerFunc {
-	processor, err := metrics.NewTraefikMetricProcessor(metricsConfig)
+func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, metricsConfig []common.RulesConfig, fields []string, metricsBuffer *MetricsBuffer) nsq.HandlerFunc {
+	processor, err := metrics.NewTraefikMetricProcessor(metricsConfig, fields)
 
 	if err != nil {
 		common.Log.WithError(err).Panic("Could not create metric processor")
@@ -47,7 +47,7 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 
 	return func(message *nsq.Message) error {
 		common.Log.WithField("message_id", string(message.ID[:nsq.MsgIDLength])).Info("Got a message")
-		entry := model.TraefikLog{}
+		entry := model.LogEntry{}
 		err := json.Unmarshal(message.Body, &entry)
 		if err != nil {
 			common.Log.WithError(err).WithField("body", string(message.Body)).Errorf("Error unmarshaling message")
@@ -92,7 +92,8 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 				return nil
 			}
 
-			processedMetrics, err := processor.Process(entry, message.Timestamp, measurement)
+			annotationConfig.MetricsType = "access_log_as_json"
+			processedMetrics, err := processor.Process(entry, annotationConfig.MetricsType, message.Timestamp, measurement)
 
 			if err != nil {
 				common.Log.WithError(err).Error("Error processing metrics")
@@ -130,7 +131,7 @@ func Consume(config common.Config, metricsBuffer *MetricsBuffer) error {
 		return err
 	}
 
-	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.InfluxDB.Measurement, config.Rules, metricsBuffer))
+	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.InfluxDB.Measurement, config.Rules, config.Fields, metricsBuffer))
 
 	err = consumer.ConnectToNSQLookupds(config.Nsq.Addresses)
 	if err != nil {

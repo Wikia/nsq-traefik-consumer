@@ -21,7 +21,7 @@ type KubernetesMeta struct {
 	ContainerName string            `json:"container_name"`
 }
 
-type TraefikLog struct {
+type LogEntry struct {
 	Log                   string         `json:"log"`
 	Stream                string         `json:"stream"`
 	Time                  time.Time      `json:"time"`
