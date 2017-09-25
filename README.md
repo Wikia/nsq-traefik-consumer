@@ -18,14 +18,16 @@ Annotation should have proper fields with proper values defined. Here is the sam
   "wikia_com/keys": {
     "influx_metrics": {
       "container_name": "foo-bar", 
-      "type": "traefik"
+      "type": "access_log_as_json"
     }
   }
 }
 ```
 
 * `container_name` needs to be specified to properly indicate POD running Traefik instance (there can be more containers per POD).
-* `type` needs to specified but it's value is ignored for now
+* `type` specifies the log format application expects when parsing events from NSQ. Possible values are:
+    ** access_log_combined (legacy access log compatible with Apache/Nginx)
+    ** access_log_as_json (introduced in Traefik 1.4)
  
 Since Traefik sends access logs with only precision of 1 second this tools uses time of processing as
 a timestamp sent to InfluxDB. This may cause offsets and delays or even data being compressed when
@@ -35,20 +37,39 @@ InfluxDB (at least it lowers risk greatly).
 Data being sent to InfluxDB are in the form of:
 
 ##### Values
-* `log_timestamp` - the actual timestamp from the Traefik access log
-* `backend_url` - url of the Traefik backed request was handled by
-* `request_method` - HTTP method of the request
-* `client_username` - HTTP Auth username if valid
-* `http_referer` - value of HTTP referer header
-* `http_user_agent` - value of HTTP user agent header
-* `request_url` - full request url path
-* `response_code` - HTTP response code
-* `request_time` - request time in ms
-* `request_count` - auto incremented request counter
-* `response_size` - response size in bytes
+* `duration`
+* `backend_url`
+* `backend_address`
+* `client_address`
+* `client_host`
+* `client_port`
+* `client_username`
+* `request_address`
+* `request_host`
+* `request_port`
+* `request_method`
+* `request_path`
+* `request_protocol`
+* `request_line`
+* `request_content_size`
+* `origin_duration`
+* `origin_content_size`
+* `origin_status`
+* `origin_status_line`
+* `downstream_status`
+* `downstream_status_line`
+* `downstream_content_size`
+* `request_count`
+* `gzip_ratio`
+* `overhead`
+* `retry_attempts`
+* `original_timestamp`
+* `referrer`
+* `client_user_agent`
 
 ##### Tags
 * `frontend_name` - name of the Traefik frontend that handled the request
+* `backend_name` - name of the Traefik backend
 * `host_name` - host name which Traefik is running on
 * `cluster_name` - k8s cluster name
 * `data_center` - k8s data centre
@@ -72,6 +93,36 @@ InfluxDB:
   SendInterval: 5s
   Measurement: k8s_traefik
   RetentionPolicy: short_term
+Fields:
+  - duration
+  - backend_url
+  - backend_address
+  - client_address
+  - client_host
+  - client_port
+  - client_username
+  - request_address
+  - request_host
+  - request_port
+  - request_method
+  - request_path
+  - request_protocol
+  - request_line
+  - request_content_size
+  - origin_duration
+  - origin_content_size
+  - origin_status
+  - origin_status_line
+  - downstream_status
+  - downstream_status_line
+  - downstream_content_size
+  - request_count
+  - gzip_ratio
+  - overhead
+  - retry_attempts
+  - original_timestamp
+  - referrer
+  - client_user_agent
 Rules:
   - Id: k8s_helios
     UrlRegexp: ^/info
