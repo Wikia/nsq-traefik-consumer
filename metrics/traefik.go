@@ -36,12 +36,14 @@ type ProcessRule struct {
 type TraefikMetricProcessor struct {
 	Rules           map[*regexp.Regexp]ProcessRule
 	randomGenerator *rand.Rand
+	fields          []string
 }
 
-func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProcessor, error) {
+func NewTraefikMetricProcessor(config []common.RulesConfig, fields []string) (*TraefikMetricProcessor, error) {
 	mp := TraefikMetricProcessor{Rules: map[*regexp.Regexp]ProcessRule{}}
 	s1 := rand.NewSource(time.Now().UnixNano())
 	mp.randomGenerator = rand.New(s1)
+	mp.fields = fields
 
 	for _, cfg := range config {
 		rule := ProcessRule{}
@@ -231,7 +233,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 		tags["cluster_name"] = entry.KubernetesClusterName
 		tags["data_center"] = entry.Datacenter
 		tags["rule_id"] = rule.Id
-		values := parsedLog.GetValues()
+		values := parsedLog.GetValues(mp.fields)
 
 		var timestamp time.Time
 		if parsedLog.StartUTC.IsZero() {

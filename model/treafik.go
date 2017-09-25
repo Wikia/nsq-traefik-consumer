@@ -41,7 +41,7 @@ type TraefikAccessLog struct {
 	ClientUserAgent       string
 }
 
-func (t *TraefikAccessLog) GetValues() map[string]interface{} {
+func (t *TraefikAccessLog) GetValues(fields []string) map[string]interface{} {
 	v := map[string]interface{}{}
 
 	v["duration"] = t.Duration
@@ -76,7 +76,19 @@ func (t *TraefikAccessLog) GetValues() map[string]interface{} {
 	v["referrer"] = t.Referrer
 	v["client_user_agent"] = t.ClientUserAgent
 
-	return v
+	r := map[string]interface{}{}
+
+	for _, field := range fields {
+		val, has := v[field]
+
+		if !has {
+			continue
+		}
+
+		r[field] = val
+	}
+
+	return r
 }
 
 func (t *TraefikAccessLog) GetTags() map[string]string {

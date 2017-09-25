@@ -36,8 +36,8 @@ func NewConsumer(config common.NsqConfig) (*nsq.Consumer, error) {
 	return consumer, nil
 }
 
-func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, metricsConfig []common.RulesConfig, metricsBuffer *MetricsBuffer) nsq.HandlerFunc {
-	processor, err := metrics.NewTraefikMetricProcessor(metricsConfig)
+func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, metricsConfig []common.RulesConfig, fields []string, metricsBuffer *MetricsBuffer) nsq.HandlerFunc {
+	processor, err := metrics.NewTraefikMetricProcessor(metricsConfig, fields)
 
 	if err != nil {
 		common.Log.WithError(err).Panic("Could not create metric processor")
@@ -131,7 +131,7 @@ func Consume(config common.Config, metricsBuffer *MetricsBuffer) error {
 		return err
 	}
 
-	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.InfluxDB.Measurement, config.Rules, metricsBuffer))
+	consumer.AddHandler(metricsProcessor(config.Kubernetes, config.InfluxDB.Measurement, config.Rules, config.Fields, metricsBuffer))
 
 	err = consumer.ConnectToNSQLookupds(config.Nsq.Addresses)
 	if err != nil {

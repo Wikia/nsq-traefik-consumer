@@ -44,6 +44,7 @@ type Config struct {
 	Kubernetes KubernetesConfig
 	InfluxDB   InfluxDbConfig
 	Rules      []RulesConfig
+	Fields     []string
 }
 
 func NewConfig() Config {
