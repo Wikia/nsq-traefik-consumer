@@ -16,7 +16,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/Wikia/nsq-traefik-consumer/model"
-	"github.com/fatih/structs"
 	"github.com/influxdata/influxdb/client/v2"
 )
 
@@ -227,30 +226,21 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 			continue
 		}
 
-		values := structs.Map(parsedLog)
+		tags := parsedLog.GetTags()
+		tags["host_name"] = entry.Kubernetes.Host
+		tags["cluster_name"] = entry.KubernetesClusterName
+		tags["data_center"] = entry.Datacenter
+		tags["rule_id"] = rule.Id
+		values := parsedLog.GetValues()
 
-		if err != nil {
-			common.Log.WithError(err).WithFields(log.Fields{
-				"entry":   parsedLog,
-				"rule_id": rule.Id,
-			}).Error("Error processing log")
-			continue
+		var timestamp time.Time
+		if parsedLog.StartUTC.IsZero() {
+			timestamp = time.Now().UTC()
+		} else {
+			timestamp = parsedLog.StartUTC
 		}
 
-		common.Log.WithFields(log.Fields{
-			"metrics": values,
-			"rule_id": rule.Id,
-		}).Debug("Successfully derived metrics")
-
-		tags := map[string]string{
-			"frontend_name": parsedLog.FrontendName,
-			"host_name":     entry.Kubernetes.Host,
-			"cluster_name":  entry.KubernetesClusterName,
-			"data_center":   entry.Datacenter,
-			"rule_id":       rule.Id,
-		}
-
-		pt, err := client.NewPoint(measurement, tags, values, time.Now())
+		pt, err := client.NewPoint(measurement, tags, values, timestamp)
 		if err != nil {
 			common.Log.WithFields(log.Fields{
 				"values":      values,
