@@ -38,7 +38,7 @@ type TSMFile interface {
 
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key []byte) []IndexEntry
-	ReadEntries(key []byte, entries *[]IndexEntry)
+	ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry
 
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time.
@@ -109,6 +109,9 @@ type TSMFile interface {
 	// BlockIterator returns an iterator pointing to the first block in the file and
 	// allows sequential iteration to each and every block.
 	BlockIterator() *BlockIterator
+
+	// Free releases any resources held by the FileStore to free up system resources.
+	Free() error
 }
 
 // Statistics gathered by the FileStore.
@@ -231,6 +234,19 @@ func (f *FileStore) Files() []TSMFile {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.files
+}
+
+// Free releases any resources held by the FileStore.  The resources will be re-acquired
+// if necessary if they are needed after freeing them.
+func (f *FileStore) Free() error {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, f := range f.files {
+		if err := f.Free(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CurrentGeneration returns the current generation of the TSM files.
@@ -479,6 +495,19 @@ func (f *FileStore) Cost(key []byte, min, max int64) query.IteratorCost {
 	return f.cost(key, min, max)
 }
 
+// Reader returns a TSMReader for path if one is currently managed by the FileStore.
+// Otherwise it returns nil.
+func (f *FileStore) TSMReader(path string) *TSMReader {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, r := range f.files {
+		if r.Path() == path {
+			return r.(*TSMReader)
+		}
+	}
+	return nil
+}
+
 // KeyCursor returns a KeyCursor for key and t across the files in the FileStore.
 func (f *FileStore) KeyCursor(key []byte, t int64, ascending bool) *KeyCursor {
 	f.mu.RLock()
@@ -498,6 +527,11 @@ func (f *FileStore) Stats() []FileStat {
 	// The file stats cache is invalid due to changes to files. Need to
 	// recalculate.
 	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if len(f.lastFileStats) > 0 {
+		return f.lastFileStats
+	}
 
 	// If lastFileStats's capacity is far away from the number of entries
 	// we need to add, then we'll reallocate.
@@ -508,7 +542,6 @@ func (f *FileStore) Stats() []FileStat {
 	for _, fd := range f.files {
 		f.lastFileStats = append(f.lastFileStats, fd.Stats())
 	}
-	defer f.mu.Unlock()
 	return f.lastFileStats
 }
 
@@ -641,8 +674,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	// If times didn't change (which can happen since file mod times are second level),
 	// then add a ns to the time to ensure that lastModified changes since files on disk
 	// actually did change
-	if maxTime.Equal(f.lastModified) {
-		maxTime = maxTime.UTC().Add(1)
+	if maxTime.Equal(f.lastModified) || maxTime.Before(f.lastModified) {
+		maxTime = f.lastModified.UTC().Add(1)
 	}
 
 	f.lastModified = maxTime.UTC()
@@ -736,7 +769,7 @@ func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
 // We need to determine the possible files that may be accessed by this query given
 // the time range.
 func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
-	var entries []IndexEntry
+	var cache []IndexEntry
 	cost := query.IteratorCost{}
 	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
@@ -746,7 +779,7 @@ func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
 		skipped := true
 		tombstones := fd.TombstoneRange(key)
 
-		fd.ReadEntries(key, &entries)
+		entries := fd.ReadEntries(key, &cache)
 	ENTRIES:
 		for i := 0; i < len(entries); i++ {
 			ie := entries[i]
@@ -778,7 +811,7 @@ func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
 // whether the key will be scan in ascending time order or descenging time order.
 // This function assumes the read-lock has been taken.
 func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
-	var entries []IndexEntry
+	var cache []IndexEntry
 	locations := make([]*location, 0, len(f.files))
 	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
@@ -796,22 +829,18 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 
 		// This file could potential contain points we are looking for so find the blocks for
 		// the given key.
-		fd.ReadEntries(key, &entries)
+		entries := fd.ReadEntries(key, &cache)
+	LOOP:
 		for i := 0; i < len(entries); i++ {
 			ie := entries[i]
 
 			// Skip any blocks only contain values that are tombstoned.
-			var skip bool
 			for _, t := range tombstones {
 				if t.Min <= ie.MinTime && t.Max >= ie.MaxTime {
-					skip = true
-					break
+					continue LOOP
 				}
 			}
 
-			if skip {
-				continue
-			}
 			// If we ascending and the max time of a block is before where we are looking, skip
 			// it since the data is out of our range
 			if ascending && ie.MaxTime < t {
