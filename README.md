@@ -64,8 +64,8 @@ Data being sent to InfluxDB are in the form of:
 * `overhead`
 * `retry_attempts`
 * `original_timestamp`
-* `referrer`
-* `client_user_agent`
+* request headers prefixed with `request__` (i.e. `request__user-agent`)
+* origin headers prefixed with `origin__` (i.e. `origin__content-size`)
 
 ##### Tags
 * `frontend_name` - name of the Traefik frontend that handled the request

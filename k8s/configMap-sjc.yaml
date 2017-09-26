@@ -50,8 +50,8 @@ data:
       - overhead
       - retry_attempts
       - original_timestamp
-      - referrer
-      - client_user_agent
+      - request__referer
+      - request__user-agent
     Rules:
       - Id: services-all
         FrontendRegexp: ^.+\.k8s\.wikia\.net

@@ -11,7 +11,9 @@ import (
 
 	"encoding/json"
 
-	"strconv"
+	"unicode"
+
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
@@ -85,89 +87,71 @@ func NewTraefikMetricProcessor(config []common.RulesConfig, fields []string) (*T
 	return &mp, nil
 }
 
-func parseCommonLog(entry model.LogEntry) (*model.TraefikAccessLog, error) {
+func parseCommonLog(entry model.LogEntry) (map[string]interface{}, error) {
 	matches := ApacheCombinedLogRegex.FindStringSubmatch(entry.Log)
 
 	if len(matches) != 15 {
 		return nil, fmt.Errorf("invalid log format - did not match necessary fields (matched fields number: %d)", len(matches))
 	}
 
-	logEntry := model.TraefikAccessLog{}
+	logEntries := map[string]interface{}{}
+
 	for idx, name := range ApacheCombinedLogRegex.SubexpNames() {
 		if idx == 0 {
 			continue
 		}
 
-		switch name {
-		case "client_host":
-			logEntry.ClientHost = matches[idx]
-		case "username":
-			logEntry.ClientUsername = matches[idx]
-		case "timestamp":
+		if name == "timestamp" {
 			value, err := time.Parse("02/Jan/2006:15:04:05 -0700", matches[idx])
 			if err != nil {
 				log.WithError(err).WithField("timestamp", matches[idx]).Error("could not parse timestamp")
 				return nil, err
 			}
-			logEntry.OriginalTimestamp = value
-		case "method":
-			logEntry.RequestMethod = matches[idx]
-		case "path":
-			logEntry.RequestPath = matches[idx]
-		case "protocol":
-			logEntry.RequestProtocol = matches[idx]
-		case "status":
-			value, err := strconv.ParseInt(matches[idx], 10, 64)
-			if err != nil {
-				log.WithError(err).WithField("status", matches[idx]).Error("could not parse http status code")
-				return nil, err
-			}
-			logEntry.OriginStatus = value
-		case "content_size":
-			value, err := strconv.ParseInt(matches[idx], 10, 64)
-			if err != nil {
-				log.WithError(err).WithField("content_size", matches[idx]).Error("could not parse content size")
-				return nil, err
-			}
-			logEntry.OriginContentSize = value
-		case "referrer":
-			logEntry.Referrer = matches[idx]
-		case "useragent":
-			logEntry.ClientUserAgent = matches[idx]
-		case "request_count":
-			value, err := strconv.ParseInt(matches[idx], 10, 64)
-			if err != nil {
-				log.WithError(err).WithField("request_count", matches[idx]).Error("error parsing request count")
-				return nil, err
-			}
-			logEntry.RequestCount = value
-		case "frontend_name":
-			logEntry.FrontendName = matches[idx]
-		case "backend_url":
-			logEntry.BackendName = matches[idx]
-		case "request_time":
-			value, err := time.ParseDuration(matches[idx])
-			if err != nil {
-				log.WithError(err).WithField("request_time", matches[idx]).Error("could not parse request time")
-				return nil, err
-			}
-			logEntry.Duration = value
+			logEntries["original_timestamp"] = value
+		} else if name == "request__useragent" {
+			logEntries["request__user-agent"] = matches[idx]
+		} else {
+			logEntries[name] = matches[idx]
 		}
 	}
 
-	return &logEntry, nil
+	return logEntries, nil
 }
 
-func parseJsonLog(entry model.LogEntry) (*model.TraefikAccessLog, error) {
-	logEntry := model.TraefikAccessLog{}
+// ToSnake convert the given string to snake case following the Golang format:
+// acronyms are converted to lower-case and preceded by an underscore.
+func toSnake(in string) string {
+	runes := []rune(in)
+	length := len(runes)
 
-	err := json.Unmarshal([]byte(entry.Log), &logEntry)
+	var out []rune
+	for i := 0; i < length; i++ {
+		if i > 0 && unicode.IsUpper(runes[i]) && unicode.IsLetter(runes[i]) && ((i+1 < length && unicode.IsLower(runes[i+1])) || unicode.IsLower(runes[i-1])) {
+			out = append(out, '_')
+		}
+		out = append(out, unicode.ToLower(runes[i]))
+	}
+
+	return string(out)
+}
+
+func parseJsonLog(entry model.LogEntry) (map[string]interface{}, error) {
+	logEntries := map[string]interface{}{}
+
+	err := json.Unmarshal([]byte(entry.Log), &logEntries)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &logEntry, nil
+	ret := map[string]interface{}{}
+
+	for k, v := range logEntries {
+		key := strings.Replace(toSnake(k), "-_", "-", -1)
+		ret[key] = v
+	}
+
+	return ret, nil
 }
 
 func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string, timestamp int64, measurement string) (client.BatchPoints, error) {
@@ -176,7 +160,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 		return nil, err
 	}
 
-	var parsedLog *model.TraefikAccessLog
+	var parsedLog map[string]interface{}
 
 	switch logFormat {
 	case Combined:
@@ -196,7 +180,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 
 	// filtering and rule processing
 	for rxp, rule := range mp.Rules {
-		if !rxp.MatchString(parsedLog.FrontendName) {
+		if !rxp.MatchString(parsedLog["frontend_name"].(string)) {
 			common.Log.WithFields(log.Fields{
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
@@ -204,7 +188,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 			continue
 		}
 
-		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(parsedLog.RequestPath) {
+		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(parsedLog["request_path"].(string)) {
 			common.Log.WithFields(log.Fields{
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
@@ -212,7 +196,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 			continue
 		}
 
-		if rule.MethodRegexp != nil && !rule.MethodRegexp.MatchString(parsedLog.RequestMethod) {
+		if rule.MethodRegexp != nil && !rule.MethodRegexp.MatchString(parsedLog["request_method"].(string)) {
 			common.Log.WithFields(log.Fields{
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
@@ -228,18 +212,36 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 			continue
 		}
 
-		tags := parsedLog.GetTags()
-		tags["host_name"] = entry.Kubernetes.Host
-		tags["cluster_name"] = entry.KubernetesClusterName
-		tags["data_center"] = entry.Datacenter
-		tags["rule_id"] = rule.Id
-		values := parsedLog.GetValues(mp.fields)
+		tags := map[string]string{
+			"frontend_name": parsedLog["frontend_name"].(string),
+			"backend_name":  parsedLog["backend_name"].(string),
+			"host_name":     entry.Kubernetes.Host,
+			"cluster_name":  entry.KubernetesClusterName,
+			"data_center":   entry.Datacenter,
+			"rule_id":       rule.Id,
+		}
+
+		values := map[string]interface{}{}
 
 		var timestamp time.Time
-		if parsedLog.StartUTC.IsZero() {
-			timestamp = time.Now().UTC()
+		original_timestamp, has := parsedLog["start_utc"]
+		if has {
+			timestamp, err = time.Parse("", original_timestamp.(string))
+			if err != nil {
+				common.Log.WithError(err).WithField("original_timestamp", original_timestamp).Error("Error parsing timestamp")
+				continue
+			}
 		} else {
-			timestamp = parsedLog.StartUTC
+			timestamp = time.Now()
+		}
+
+		for _, k := range mp.fields {
+			_, has := parsedLog[k]
+			if !has {
+				continue
+			}
+
+			values[k] = parsedLog[k]
 		}
 
 		pt, err := client.NewPoint(measurement, tags, values, timestamp)
