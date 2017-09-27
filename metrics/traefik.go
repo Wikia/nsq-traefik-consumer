@@ -20,19 +20,20 @@ import (
 type RuleFilter func(model.TraefikLog) bool
 
 type ProcessRule struct {
-	Id           string
-	PathRegexp   *regexp.Regexp
-	MethodRegexp *regexp.Regexp
-	Filter       RuleFilter
+	Id             string
+	PathRegexp     *regexp.Regexp
+	MethodRegexp   *regexp.Regexp
+	FrontEndRegexp *regexp.Regexp
+	Filter         RuleFilter
 }
 
 type TraefikMetricProcessor struct {
-	Rules           map[*regexp.Regexp]ProcessRule
+	Rules           []ProcessRule
 	randomGenerator *rand.Rand
 }
 
 func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProcessor, error) {
-	mp := TraefikMetricProcessor{Rules: map[*regexp.Regexp]ProcessRule{}}
+	mp := TraefikMetricProcessor{Rules: []ProcessRule{}}
 	s1 := rand.NewSource(time.Now().UnixNano())
 	mp.randomGenerator = rand.New(s1)
 
@@ -60,17 +61,10 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 		if err != nil {
 			return nil, err
 		}
+		rule.FrontEndRegexp = rxp
 		rule.Filter = func(traefikLog model.TraefikLog) bool { return mp.randomGenerator.Float64() < cfg.Sampling }
 
-		_, has := mp.Rules[rxp]
-		if has {
-			common.Log.WithFields(log.Fields{
-				"rule_id":      cfg.Id,
-				"duplicate_id": mp.Rules[rxp].Id,
-			}).Error("Duplicated rules")
-			return nil, fmt.Errorf("UrlRegexp for rules duplicates")
-		}
-		mp.Rules[rxp] = rule
+		mp.Rules = append(mp.Rules, rule)
 	}
 
 	return &mp, nil
@@ -160,8 +154,8 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 	}
 
 	// filtering and rule processing
-	for rxp, rule := range mp.Rules {
-		if !rxp.MatchString(mappedMatches["frontend_name"]) {
+	for _, rule := range mp.Rules {
+		if !rule.FrontEndRegexp.MatchString(mappedMatches["frontend_name"]) {
 			common.Log.WithFields(log.Fields{
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
@@ -190,7 +184,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Debug("Entry below threshold (sampling) - skipping")
-			continue
+			return result, nil
 		}
 
 		values, err := mp.getMetrics(entry, mappedMatches)
@@ -199,7 +193,7 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
 			}).Error("Error processing log")
-			continue
+			return nil, err
 		}
 
 		common.Log.WithFields(log.Fields{
@@ -222,10 +216,11 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 				"tags":        tags,
 				"measurement": measurement,
 			}).WithError(err).Error("Error creating time point from log entry")
-			continue
+			return nil, err
 		}
 
 		result.AddPoint(pt)
+		return result, nil
 	}
 
 	return result, nil
