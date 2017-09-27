@@ -98,6 +98,8 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 			if err != nil {
 				common.Log.WithError(err).Error("Error processing metrics")
 				return nil
+			} else if len(processedMetrics.Points()) == 0 {
+				return nil
 			}
 
 			counter := stats.GetOrRegisterCounter("logs_consumed", stats.DefaultRegistry)

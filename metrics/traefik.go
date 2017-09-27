@@ -29,20 +29,21 @@ const (
 type RuleFilter func(model.LogEntry) bool
 
 type ProcessRule struct {
-	Id           string
-	PathRegexp   *regexp.Regexp
-	MethodRegexp *regexp.Regexp
-	Filter       RuleFilter
+	Id             string
+	PathRegexp     *regexp.Regexp
+	MethodRegexp   *regexp.Regexp
+	FrontEndRegexp *regexp.Regexp
+	Filter         RuleFilter
 }
 
 type TraefikMetricProcessor struct {
-	Rules           map[*regexp.Regexp]ProcessRule
+	Rules           []ProcessRule
 	randomGenerator *rand.Rand
 	fields          []string
 }
 
 func NewTraefikMetricProcessor(config []common.RulesConfig, fields []string) (*TraefikMetricProcessor, error) {
-	mp := TraefikMetricProcessor{Rules: map[*regexp.Regexp]ProcessRule{}}
+	mp := TraefikMetricProcessor{Rules: []ProcessRule{}}
 	s1 := rand.NewSource(time.Now().UnixNano())
 	mp.randomGenerator = rand.New(s1)
 	mp.fields = fields
@@ -72,16 +73,9 @@ func NewTraefikMetricProcessor(config []common.RulesConfig, fields []string) (*T
 			return nil, err
 		}
 		rule.Filter = func(traefikLog model.LogEntry) bool { return mp.randomGenerator.Float64() < cfg.Sampling }
+		rule.FrontEndRegexp = rxp
 
-		_, has := mp.Rules[rxp]
-		if has {
-			common.Log.WithFields(log.Fields{
-				"rule_id":      cfg.Id,
-				"duplicate_id": mp.Rules[rxp].Id,
-			}).Error("Duplicated rules")
-			return nil, fmt.Errorf("UrlRegexp for rules duplicates")
-		}
-		mp.Rules[rxp] = rule
+		mp.Rules = append(mp.Rules, rule)
 	}
 
 	return &mp, nil
@@ -180,8 +174,8 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 	}
 
 	// filtering and rule processing
-	for rxp, rule := range mp.Rules {
-		if !rxp.MatchString(parsedLog["frontend_name"].(string)) {
+	for _, rule := range mp.Rules {
+		if !rule.FrontEndRegexp.MatchString(parsedLog["frontend_name"].(string)) {
 			common.Log.WithFields(log.Fields{
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
@@ -210,7 +204,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
 			}).Debug("Entry below threshold (sampling) - skipping")
-			continue
+			return result, nil
 		}
 
 		tags := map[string]string{
@@ -252,10 +246,11 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 				"tags":        tags,
 				"measurement": measurement,
 			}).WithError(err).Error("Error creating time point from log entry")
-			continue
+			return nil, err
 		}
 
 		result.AddPoint(pt)
+		return result, nil
 	}
 
 	return result, nil
