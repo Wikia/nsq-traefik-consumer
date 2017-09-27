@@ -20,18 +20,19 @@ import (
 type RuleFilter func(model.TraefikLog) bool
 
 type ProcessRule struct {
-	Id           string
-	PathRegexp   *regexp.Regexp
-	MethodRegexp *regexp.Regexp
-	Filter       RuleFilter
+	Id             string
+	PathRegexp     *regexp.Regexp
+	MethodRegexp   *regexp.Regexp
+	FrontEndRegexp *regexp.Regexp
+	Filter         RuleFilter
 }
 
 type TraefikMetricProcessor struct {
-	Rules map[*regexp.Regexp]ProcessRule
+	Rules []ProcessRule
 }
 
 func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProcessor, error) {
-	mp := TraefikMetricProcessor{Rules: map[*regexp.Regexp]ProcessRule{}}
+	mp := TraefikMetricProcessor{Rules: []ProcessRule{}}
 
 	for _, cfg := range config {
 		rule := ProcessRule{}
@@ -57,17 +58,10 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 		if err != nil {
 			return nil, err
 		}
+		rule.FrontEndRegexp = rxp
 		rule.Filter = func(traefikLog model.TraefikLog) bool { return rand.NormFloat64() <= cfg.Sampling }
 
-		_, has := mp.Rules[rxp]
-		if has {
-			common.Log.WithFields(log.Fields{
-				"rule_id":      cfg.Id,
-				"duplicate_id": mp.Rules[rxp].Id,
-			}).Error("Duplicated rules")
-			return nil, fmt.Errorf("UrlRegexp for rules duplicates")
-		}
-		mp.Rules[rxp] = rule
+		mp.Rules = append(mp.Rules, rule)
 	}
 
 	return &mp, nil
@@ -157,8 +151,8 @@ func (mp TraefikMetricProcessor) Process(entry model.TraefikLog, timestamp int64
 	}
 
 	// filtering and rule processing
-	for rxp, rule := range mp.Rules {
-		if !rxp.MatchString(mappedMatches["frontend_name"]) {
+	for _, rule := range mp.Rules {
+		if !rule.FrontEndRegexp.MatchString(mappedMatches["frontend_name"]) {
 			common.Log.WithFields(log.Fields{
 				"entry":   mappedMatches,
 				"rule_id": rule.Id,
