@@ -28,11 +28,14 @@ type ProcessRule struct {
 }
 
 type TraefikMetricProcessor struct {
-	Rules []ProcessRule
+	Rules           []ProcessRule
+	randomGenerator *rand.Rand
 }
 
 func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProcessor, error) {
 	mp := TraefikMetricProcessor{Rules: []ProcessRule{}}
+	s1 := rand.NewSource(time.Now().UnixNano())
+	mp.randomGenerator = rand.New(s1)
 
 	for _, cfg := range config {
 		rule := ProcessRule{}
@@ -59,7 +62,7 @@ func NewTraefikMetricProcessor(config []common.RulesConfig) (*TraefikMetricProce
 			return nil, err
 		}
 		rule.FrontEndRegexp = rxp
-		rule.Filter = func(traefikLog model.TraefikLog) bool { return rand.NormFloat64() <= cfg.Sampling }
+		rule.Filter = func(traefikLog model.TraefikLog) bool { return mp.randomGenerator.Float64() < cfg.Sampling }
 
 		mp.Rules = append(mp.Rules, rule)
 	}

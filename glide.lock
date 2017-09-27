@@ -1,8 +1,8 @@
 hash: 0c543ca292ded85001cc2f5ebc945a5e15dacb01eea0db610ff5dafb58fefbbd
-updated: 2017-09-06T11:17:50.033261481+02:00
+updated: 2017-09-24T13:56:37.815924947+02:00
 imports:
 - name: github.com/containous/traefik
-  version: b0a0e16136a11cb0dade96f411fa07f4ded54ec2
+  version: fc550ac1fced08f8f90e3ebdb8efe598ee6f2553
   subpackages:
   - log
 - name: github.com/fsnotify/fsnotify
@@ -10,9 +10,9 @@ imports:
 - name: github.com/fukata/golang-stats-api-handler
   version: ab9f90f16caab828afda479fd34bfbbbba2efcee
 - name: github.com/golang/snappy
-  version: d9eb7a3d35ec988b8585d4a0068e462c27d28380
+  version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/hashicorp/hcl
-  version: 8f6b1344a92ff8877cf24a5de9177bf7d0a2a187
+  version: 68e816d1c783414e79bc65b3994d9ab6b0a722ab
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -25,7 +25,7 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/influxdata/influxdb
-  version: 2f4315ccdf93caaccbebe48d68428c4a79090d6e
+  version: e442bd87eaa82cefea7727f20a0040883d8ac4e5
   subpackages:
   - client/v2
   - models
@@ -57,16 +57,16 @@ imports:
 - name: github.com/spf13/viper
   version: 25b30aa063fc18e48662b86996252eabdcf2f0c7
 - name: golang.org/x/crypto
-  version: 81e90905daefcd6fd217b62423c0908922eadb30
+  version: 7d9177d70076375b9a59c8fde23d52d9c4a7ecd5
   subpackages:
   - ssh/terminal
 - name: golang.org/x/sys
-  version: 90796e5a05ce440b41c768bd9af257005e470461
+  version: 429f518978ab01db8bb6f44b66785088e7fba58b
   subpackages:
   - unix
   - windows
 - name: golang.org/x/text
-  version: 2910a502d2bf9e43193af9d68ca516529614eed3
+  version: 1cbadb444a806fd9430d14ad08967ed91da4fa0a
   subpackages:
   - encoding
   - encoding/charmap
@@ -122,7 +122,7 @@ testImports:
   - matchers/support/goraph/util
   - types
 - name: golang.org/x/net
-  version: e90d6d0afc4c315a0d87a568ae68577cc15149a0
+  version: 0744d001aa8470aaa53df28d32e5ceeb8af9bd70
   subpackages:
   - html
   - html/atom

@@ -17,16 +17,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb/index/inmem"
-
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/uber-go/zap"
 )
 
@@ -137,8 +137,10 @@ type Engine struct {
 
 	stats *EngineStatistics
 
-	// The limiter for concurrent compactions
-	compactionLimiter limiter.Fixed
+	// Limiters for concurrent compactions.  The low priority limiter is for level 3 and 4
+	// compactions.  The high priority is for level 1 and 2 compactions.
+	loPriCompactionLimiter limiter.Fixed
+	hiPriCompactionLimiter limiter.Fixed
 }
 
 // NewEngine returns a new instance of Engine.
@@ -176,8 +178,9 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
-		stats:             &EngineStatistics{},
-		compactionLimiter: opt.CompactionLimiter,
+		stats: &EngineStatistics{},
+		loPriCompactionLimiter: opt.LoPriCompactionLimiter,
+		hiPriCompactionLimiter: opt.HiPriCompactionLimiter,
 	}
 
 	// Attach fieldset to index.
@@ -245,7 +248,7 @@ func (e *Engine) enableLevelCompactions(wait bool) {
 	go func() { defer e.wg.Done(); e.compactTSMFull(quit) }()
 	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 1, quit) }()
 	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 2, quit) }()
-	go func() { defer e.wg.Done(); e.compactTSMLevel(false, 3, quit) }()
+	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 3, quit) }()
 }
 
 // disableLevelCompactions will stop level compactions before returning.
@@ -309,6 +312,11 @@ func (e *Engine) disableSnapshotCompactions() {
 
 	e.mu.Unlock()
 	e.snapWG.Wait()
+
+	// If the cache is empty, free up its resources as well.
+	if e.Cache.Size() == 0 {
+		e.Cache.Free()
+	}
 }
 
 // Path returns the path the engine was opened with.
@@ -573,6 +581,12 @@ func (e *Engine) IsIdle() bool {
 	runningCompactions += atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsActive)
 
 	return cacheEmpty && runningCompactions == 0 && e.CompactionPlan.FullyCompacted()
+}
+
+// Free releases any resources held by the engine to free up memory or CPU.
+func (e *Engine) Free() error {
+	e.Cache.Free()
+	return e.FileStore.Free()
 }
 
 // Backup writes a tar archive of any TSM files modified since the passed
@@ -1009,6 +1023,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			}
 		}
 	}
+	go e.index.Rebuild()
 
 	return nil
 }
@@ -1020,10 +1035,35 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 
-	// Under lock, delete any series created deletion.
+	// A sentinel error message to cause DeleteWithLock to not delete the measurement
+	abortErr := fmt.Errorf("measurements still exist")
+
+	// Under write lock, delete the measurement if we no longer have any data stored for
+	// the measurement.  If data exists, we can't delete the field set yet as there
+	// were writes to the measurement while we are deleting it.
 	if err := e.fieldset.DeleteWithLock(string(name), func() error {
-		return e.deleteMeasurement(name)
-	}); err != nil {
+		encodedName := models.EscapeMeasurement(name)
+
+		// First scan the cache to see if any series exists for this measurement.
+		if err := e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+			if bytes.HasPrefix(k, encodedName) {
+				return abortErr
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		// Check the filestore.
+		return e.FileStore.WalkKeys(func(k []byte, typ byte) error {
+			if bytes.HasPrefix(k, encodedName) {
+				return abortErr
+			}
+			return nil
+		})
+
+	}); err != nil && err != abortErr {
+		// Something else failed, return it
 		return err
 	}
 
@@ -1253,6 +1293,10 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 // onFileStoreReplace is callback handler invoked when the FileStore
 // has replaced one set of TSM files with a new set.
 func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
+	if e.index.Type() == tsi1.IndexName {
+		return
+	}
+
 	// Load any new series keys to the index
 	readers := make([]chan seriesKey, 0, len(newFiles))
 	for _, r := range newFiles {
@@ -1305,46 +1349,33 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 type compactionStrategy struct {
 	compactionGroups []CompactionGroup
 
-	// concurrency determines how many compactions groups will be started
-	// concurrently.  These groups may be limited by the global limiter if
-	// enabled.
-	concurrency int
 	fast        bool
 	description string
+	level       int
 
 	durationStat *int64
 	activeStat   *int64
 	successStat  *int64
 	errorStat    *int64
 
-	logger    zap.Logger
-	compactor *Compactor
-	fileStore *FileStore
-	limiter   limiter.Fixed
-	engine    *Engine
+	logger       zap.Logger
+	compactor    *Compactor
+	fileStore    *FileStore
+	loPriLimiter limiter.Fixed
+	hiPriLimiter limiter.Fixed
+
+	engine *Engine
 }
 
 // Apply concurrently compacts all the groups in a compaction strategy.
 func (s *compactionStrategy) Apply() {
 	start := time.Now()
 
-	// cap concurrent compaction groups to no more than 4 at a time.
-	concurrency := s.concurrency
-	if concurrency == 0 {
-		concurrency = 4
-	}
-
-	throttle := limiter.NewFixed(concurrency)
 	var wg sync.WaitGroup
 	for i := range s.compactionGroups {
 		wg.Add(1)
 		go func(groupNum int) {
 			defer wg.Done()
-
-			// limit concurrent compaction groups
-			throttle.Take()
-			defer throttle.Release()
-
 			s.compactGroup(groupNum)
 		}(i)
 	}
@@ -1355,10 +1386,31 @@ func (s *compactionStrategy) Apply() {
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup(groupNum int) {
-	// Limit concurrent compactions if we have a limiter
-	if cap(s.limiter) > 0 {
-		s.limiter.Take()
-		defer s.limiter.Release()
+	// Level 1 and 2 are high priority and have a larger slice of the pool.  If all
+	// the high priority capacity is used up, they can steal from the low priority
+	// pool as well if there is capacity.  Otherwise, it wait on the high priority
+	// limiter until an running compaction completes.  Level 3 and 4 are low priority
+	// as they are generally larger compactions and more expensive to run.  They can
+	// steal a little from the high priority limiter if there is no high priority work.
+	switch s.level {
+	case 1, 2:
+		if s.hiPriLimiter.TryTake() {
+			defer s.hiPriLimiter.Release()
+		} else if s.loPriLimiter.TryTake() {
+			defer s.loPriLimiter.Release()
+		} else {
+			s.hiPriLimiter.Take()
+			defer s.hiPriLimiter.Release()
+		}
+	default:
+		if s.loPriLimiter.TryTake() {
+			defer s.loPriLimiter.Release()
+		} else if s.hiPriLimiter.Idle() && s.hiPriLimiter.TryTake() {
+			defer s.hiPriLimiter.Release()
+		} else {
+			s.loPriLimiter.Take()
+			defer s.loPriLimiter.Release()
+		}
 	}
 
 	group := s.compactionGroups[groupNum]
@@ -1421,14 +1473,15 @@ func (e *Engine) levelCompactionStrategy(fast bool, level int) *compactionStrate
 	}
 
 	return &compactionStrategy{
-		concurrency:      4,
 		compactionGroups: compactionGroups,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
 		fast:             fast,
-		limiter:          e.compactionLimiter,
+		loPriLimiter:     e.loPriCompactionLimiter,
+		hiPriLimiter:     e.hiPriCompactionLimiter,
 		engine:           e,
+		level:            level,
 
 		description:  fmt.Sprintf("level %d", level),
 		activeStat:   &e.stats.TSMCompactionsActive[level-1],
@@ -1454,14 +1507,15 @@ func (e *Engine) fullCompactionStrategy() *compactionStrategy {
 	}
 
 	s := &compactionStrategy{
-		concurrency:      1,
 		compactionGroups: compactionGroups,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
 		fast:             optimize,
-		limiter:          e.compactionLimiter,
+		loPriLimiter:     e.loPriCompactionLimiter,
+		hiPriLimiter:     e.hiPriCompactionLimiter,
 		engine:           e,
+		level:            4,
 	}
 
 	if optimize {
@@ -2173,8 +2227,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 		for i, key := range t.SeriesKeys {
 			// Retrieve the cost for the main expression (if it exists).
 			if ref != nil {
-				k := SeriesFieldKey(key, ref.Val)
-				c := e.FileStore.Cost([]byte(k), opt.StartTime, opt.EndTime)
+				c := e.seriesCost(key, ref.Val, opt.StartTime, opt.EndTime)
 				cost = cost.Combine(c)
 			}
 
@@ -2184,8 +2237,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 			// anywhere close to the full costs of the auxiliary iterators because
 			// many of the selected values are usually skipped.
 			for _, ref := range opt.Aux {
-				k := SeriesFieldKey(key, ref.Val)
-				c := e.FileStore.Cost([]byte(k), opt.StartTime, opt.EndTime)
+				c := e.seriesCost(key, ref.Val, opt.StartTime, opt.EndTime)
 				cost = cost.Combine(c)
 			}
 
@@ -2194,14 +2246,23 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 			if t.Filters[i] != nil {
 				refs := influxql.ExprNames(t.Filters[i])
 				for _, ref := range refs {
-					k := SeriesFieldKey(key, ref.Val)
-					c := e.FileStore.Cost([]byte(k), opt.StartTime, opt.EndTime)
+					c := e.seriesCost(key, ref.Val, opt.StartTime, opt.EndTime)
 					cost = cost.Combine(c)
 				}
 			}
 		}
 	}
 	return cost, nil
+}
+
+func (e *Engine) seriesCost(seriesKey, field string, tmin, tmax int64) query.IteratorCost {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	c := e.FileStore.Cost(key, tmin, tmax)
+
+	// Retrieve the range of values within the cache.
+	cacheValues := e.Cache.Values(key)
+	c.CachedValues = int64(len(cacheValues.Include(tmin, tmax)))
+	return c
 }
 
 func (e *Engine) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {

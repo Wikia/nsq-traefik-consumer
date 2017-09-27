@@ -25,19 +25,19 @@ data:
     Rules:
       - Id: services-all
         FrontendRegexp: ^.+\.k8s\.wikia\.net/
-        SamplingRate: 1.0
+        Sampling: 1.0
       - Id: helios
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
-        SamplingRate: 1.0
+        Sampling: 1.0
       - Id: helios-legacy
         FrontendRegexp: ^services\.wikia\.com/auth
-        SamplingRate: 1.0
+        Sampling: 1.0
       - Id: helios-dev-legacy
         FrontendRegexp: ^services\.wikia-dev\.(pl|us)/auth
-        SamplingRate: 1.0
+        Sampling: 1.0
       - Id: helios-dev-k8s
         FrontendRegexp: ^services-k8s\.wikia-dev\.(pl|us)/helios
-        SamplingRate: 1.0
+        Sampling: 1.0
       - Id: helios-dev-k8s
         FrontendRegexp: ^prod\.res\.k8s\.wikia\.net/helios
-        SamplingRate: 1.0
+        Sampling: 1.0

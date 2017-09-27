@@ -159,15 +159,35 @@ func (s *Store) loadShards() error {
 		err error
 	}
 
-	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
-
 	// Setup a shared limiter for compactions
 	lim := s.EngineOptions.Config.MaxConcurrentCompactions
 	if lim == 0 {
+		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
+		if lim < 1 {
+			lim = 1
+		}
+	}
+
+	// Don't allow more compactions to run than cores.
+	if lim > runtime.GOMAXPROCS(0) {
 		lim = runtime.GOMAXPROCS(0)
 	}
-	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
+	// If only one compacttion can run at time, use the same limiter for high and low
+	// priority work.
+	if lim == 1 {
+		s.EngineOptions.HiPriCompactionLimiter = limiter.NewFixed(1)
+		s.EngineOptions.LoPriCompactionLimiter = s.EngineOptions.HiPriCompactionLimiter
+	} else {
+		// Split the available high and low priority limiters between the available cores.
+		// The high priority work can steal from low priority at times so it can use the
+		// full limit if there is pending work.  The low priority is capped at half the
+		// limit.
+		s.EngineOptions.HiPriCompactionLimiter = limiter.NewFixed(lim/2 + lim%2)
+		s.EngineOptions.LoPriCompactionLimiter = limiter.NewFixed(lim / 2)
+	}
+
+	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 	resC := make(chan *res)
 	var n int
 
@@ -269,7 +289,9 @@ func (s *Store) loadShards() error {
 	for _, sh := range s.shards {
 		sh.SetEnabled(true)
 		if sh.IsIdle() {
-			sh.SetCompactionsEnabled(false)
+			if err := sh.Free(); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -928,6 +950,12 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	}
 	s.mu.RUnlock()
 
+	// Ensure snapshot compactions are enabled since the shard might have been cold
+	// and disabled by the monitor.
+	if sh.IsIdle() {
+		sh.SetCompactionsEnabled(true)
+	}
+
 	return sh.WritePoints(points)
 }
 
@@ -1256,7 +1284,9 @@ func (s *Store) monitorShards() {
 			s.mu.RLock()
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
-					sh.SetCompactionsEnabled(false)
+					if err := sh.Free(); err != nil {
+						s.Logger.Warn("error free cold shard resources: %v", zap.Error(err))
+					}
 				} else {
 					sh.SetCompactionsEnabled(true)
 				}
