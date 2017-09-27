@@ -90,7 +90,8 @@ func NewTraefikMetricProcessor(config []common.RulesConfig, fields []string) (*T
 func parseCommonLog(entry model.LogEntry) (map[string]interface{}, error) {
 	matches := ApacheCombinedLogRegex.FindStringSubmatch(entry.Log)
 
-	if len(matches) != 15 {
+	const CombinedLogFieldCount = 15
+	if len(matches) != CombinedLogFieldCount {
 		return nil, fmt.Errorf("invalid log format - did not match necessary fields (matched fields number: %d)", len(matches))
 	}
 
