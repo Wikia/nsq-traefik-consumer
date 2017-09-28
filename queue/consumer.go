@@ -92,7 +92,6 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 				return nil
 			}
 
-			annotationConfig.MetricsType = "access_log_as_json"
 			processedMetrics, err := processor.Process(entry, annotationConfig.MetricsType, message.Timestamp, measurement)
 
 			if err != nil {
