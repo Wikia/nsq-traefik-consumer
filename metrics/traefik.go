@@ -221,9 +221,9 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 		var timestamp time.Time
 		original_timestamp, has := parsedLog["start_utc"]
 		if has {
-			timestamp, err = time.Parse("02/Jan/2006:15:04:05 -0700", original_timestamp.(string))
+			timestamp, err = time.Parse(time.RFC3339Nano, original_timestamp.(string))
 			if err != nil {
-				common.Log.WithError(err).WithField("original_timestamp", original_timestamp).Error("Error parsing timestamp")
+				common.Log.WithError(err).WithField("original_timestamp", original_timestamp).Error("error parsing timestamp")
 				continue
 			}
 		} else {
