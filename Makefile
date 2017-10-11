@@ -54,8 +54,8 @@ ifeq ($(OS),Windows_NT)
 else
 	BUILD_TIME := `date +%FT%T%z`
 endif
-VERSION_PACKAGE := main
-LDFLAGS := -ldflags "-X $(VERSION_PACKAGE).common.Version=${VERSION_GIT} -X $(VERSION_PACKAGE).common.BuildTime=${BUILD_TIME}"
+VERSION_PACKAGE := $(PROJECT_PATH)/common
+LDFLAGS := -ldflags "-X $(VERSION_PACKAGE).Version=${VERSION_GIT} -X $(VERSION_PACKAGE).BuildTime=${BUILD_TIME}"
 
 .DEFAULT_GOAL: $(BINARY)
 
