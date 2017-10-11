@@ -23,9 +23,6 @@ data:
       RetentionPolicy: default
       BatchSize: 100
     Rules:
-      - Id: services-all
-        FrontendRegexp: ^.+\.k8s\.wikia\.net/
-        Sampling: 1.0
       - Id: helios
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
         Sampling: 1.0
@@ -40,4 +37,7 @@ data:
         Sampling: 1.0
       - Id: helios-dev-k8s
         FrontendRegexp: ^prod\.res\.k8s\.wikia\.net/helios
+        Sampling: 1.0
+      - Id: services-all
+        FrontendRegexp: ^.+\.k8s\.wikia\.net/
         Sampling: 1.0
