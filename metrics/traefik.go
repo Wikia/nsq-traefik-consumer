@@ -175,7 +175,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 
 	// filtering and rule processing
 	for _, rule := range mp.Rules {
-		if !rule.FrontEndRegexp.MatchString(parsedLog["frontend_name"].(string)) {
+		if parsedLog["frontend_name"] == nil || !rule.FrontEndRegexp.MatchString(parsedLog["frontend_name"].(string)) {
 			common.Log.WithFields(log.Fields{
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
@@ -183,7 +183,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 			continue
 		}
 
-		if rule.PathRegexp != nil && !rule.PathRegexp.MatchString(parsedLog["request_path"].(string)) {
+		if parsedLog["request_path"] == nil || rule.PathRegexp != nil && !rule.PathRegexp.MatchString(parsedLog["request_path"].(string)) {
 			common.Log.WithFields(log.Fields{
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
@@ -191,7 +191,7 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 			continue
 		}
 
-		if rule.MethodRegexp != nil && !rule.MethodRegexp.MatchString(parsedLog["request_method"].(string)) {
+		if rule.MethodRegexp != nil && (parsedLog["request_method"] == nil || !rule.MethodRegexp.MatchString(parsedLog["request_method"].(string))) {
 			common.Log.WithFields(log.Fields{
 				"entry":   parsedLog,
 				"rule_id": rule.Id,
@@ -207,9 +207,14 @@ func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string,
 			return result, nil
 		}
 
+		backendName, has := parsedLog["backend_name"]
+		if !has {
+			backendName = ""
+		}
+
 		tags := map[string]string{
 			"frontend_name": parsedLog["frontend_name"].(string),
-			"backend_name":  parsedLog["backend_name"].(string),
+			"backend_name":  backendName.(string),
 			"host_name":     entry.Kubernetes.Host,
 			"cluster_name":  entry.KubernetesClusterName,
 			"data_center":   entry.Datacenter,
