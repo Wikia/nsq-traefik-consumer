@@ -107,10 +107,10 @@ func parseCommonLog(entry model.LogEntry) (map[string]interface{}, error) {
 			logEntries["original_timestamp"] = value
 		} else if name == "request__useragent" {
 			logEntries["request__user-agent"] = matches[idx]
-		} else if name == "duration" {
+		} else if name == "duration" || name == "origin_status" || name == "origin_content_size" || name == "request_count" {
 			value, err := strconv.ParseFloat(matches[idx], 64)
 			if err != nil {
-				log.WithError(err).WithField("duration", matches[idx]).Error("could not parse duration field")
+				log.WithError(err).WithField(name, matches[idx]).Error("could not parse field")
 				return nil, err
 			}
 			logEntries[name] = value
