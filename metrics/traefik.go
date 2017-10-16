@@ -15,6 +15,8 @@ import (
 
 	"strings"
 
+	"strconv"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/Wikia/nsq-traefik-consumer/common"
 	"github.com/Wikia/nsq-traefik-consumer/model"
@@ -105,6 +107,13 @@ func parseCommonLog(entry model.LogEntry) (map[string]interface{}, error) {
 			logEntries["original_timestamp"] = value
 		} else if name == "request__useragent" {
 			logEntries["request__user-agent"] = matches[idx]
+		} else if name == "duration" {
+			value, err := strconv.ParseFloat(matches[idx], 64)
+			if err != nil {
+				log.WithError(err).WithField("duration", matches[idx]).Error("could not parse duration field")
+				return nil, err
+			}
+			logEntries[name] = value
 		} else {
 			logEntries[name] = matches[idx]
 		}
