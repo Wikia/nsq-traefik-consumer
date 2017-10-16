@@ -92,7 +92,7 @@ func parseCommonLog(entry model.LogEntry) (map[string]interface{}, error) {
 	logEntries := map[string]interface{}{}
 
 	for idx, name := range ApacheCombinedLogRegex.SubexpNames() {
-		if idx == 0 {
+		if idx == 0 || len(matches[idx]) == 0 {
 			continue
 		}
 
