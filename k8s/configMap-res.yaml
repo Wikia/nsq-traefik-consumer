@@ -23,18 +23,36 @@ data:
       RetentionPolicy: default
       BatchSize: 100
     Fields:
+      - duration
+      - backend_url.Host
+      - backend_url.Path
+      - backend_address
+      - client_address
       - client_host
+      - client_port
       - client_username
+      - request_address
+      - request_host
+      - request_port
       - request_method
       - request_path
       - request_protocol
-      - origin_status
+    #  - request_line
+      - request_content_size
+      - origin_duration
       - origin_content_size
-      - request__referer
-      - request__useragent
+      - origin_status
+    #  - origin_status_line
+      - downstream_status
+    #  - downstream_status_line
+      - downstream_content_size
       - request_count
-      - backend_url
-      - duration
+      - gzip_ratio
+      - overhead
+      - retry_attempts
+      - original_timestamp
+      - request__referer
+      - request__user-agent
     Rules:
       - Id: helios
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios

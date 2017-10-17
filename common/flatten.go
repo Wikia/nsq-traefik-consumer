@@ -1,0 +1,83 @@
+package common
+
+import (
+	"fmt"
+	"reflect"
+
+	log "github.com/Sirupsen/logrus"
+)
+
+// Flatten takes a structure and turns into a flat map[string]string.
+//
+// Within the "thing" parameter, only primitive values are allowed. Structs are
+// not supported. Therefore, it can only be slices, maps, primitives, and
+// any combination of those together.
+//
+// See the tests for examples of what inputs are turned into.
+func Flatten(thing map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for k, raw := range thing {
+		flatten(result, k, reflect.ValueOf(raw))
+	}
+
+	return result
+}
+
+func flatten(result map[string]interface{}, prefix string, v reflect.Value) {
+	if v.Kind() == reflect.Interface {
+		v = v.Elem()
+	}
+
+	switch v.Kind() {
+	case reflect.Bool:
+		if v.Bool() {
+			result[prefix] = true
+		} else {
+			result[prefix] = false
+		}
+	case reflect.Int:
+		result[prefix] = v.Int()
+	case reflect.Float64:
+		result[prefix] = v.Float()
+	case reflect.Float32:
+		result[prefix] = v.Float()
+	case reflect.Map:
+		flattenMap(result, prefix, v)
+	case reflect.Slice:
+		flattenSlice(result, prefix, v)
+	case reflect.String:
+		result[prefix] = v.String()
+	case reflect.Invalid:
+		return
+	default:
+		Log.WithFields(log.Fields{
+			"prefix": prefix,
+			"value":  v,
+		}).Debug("error flattening value - unknown type")
+		return
+	}
+}
+
+func flattenMap(result map[string]interface{}, prefix string, v reflect.Value) {
+	for _, k := range v.MapKeys() {
+		if k.Kind() == reflect.Interface {
+			k = k.Elem()
+		}
+
+		if k.Kind() != reflect.String {
+			panic(fmt.Sprintf("%s: map key is not string: %s", prefix, k))
+		}
+
+		flatten(result, fmt.Sprintf("%s.%s", prefix, k.String()), v.MapIndex(k))
+	}
+}
+
+func flattenSlice(result map[string]interface{}, prefix string, v reflect.Value) {
+	prefix = prefix + "."
+
+	result[prefix+"#"] = fmt.Sprintf("%d", v.Len())
+	for i := 0; i < v.Len(); i++ {
+		flatten(result, fmt.Sprintf("%s%d", prefix, i), v.Index(i))
+	}
+}

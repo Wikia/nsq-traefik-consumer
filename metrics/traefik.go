@@ -155,7 +155,7 @@ func parseJsonLog(entry model.LogEntry) (map[string]interface{}, error) {
 		ret[key] = v
 	}
 
-	return ret, nil
+	return common.Flatten(ret), nil
 }
 
 func (mp TraefikMetricProcessor) Process(entry model.LogEntry, logFormat string, timestamp int64, measurement string) (client.BatchPoints, error) {

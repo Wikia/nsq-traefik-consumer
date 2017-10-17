@@ -24,7 +24,8 @@ data:
       BatchSize: 100
     Fields:
       - duration
-      - backend_url
+      - backend_url.Host
+      - backend_url.Path
       - backend_address
       - client_address
       - client_host
