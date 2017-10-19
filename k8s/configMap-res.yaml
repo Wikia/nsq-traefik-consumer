@@ -70,5 +70,5 @@ data:
         FrontendRegexp: ^prod\.res\.k8s\.wikia\.net/helios
         Sampling: 1.0
       - Id: services-all
-        FrontendRegexp: ^.+\.k8s\.wikia\.net/
+        FrontendRegexp: ^services\.wikia\.com
         Sampling: 1.0
