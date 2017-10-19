@@ -76,6 +76,5 @@ data:
         FrontendRegexp: ^amp\.wikia\.com
         Sampling: 0.5
       - Id: services-all
-        FrontendRegexp: ^.+\.k8s\.wikia\.net
+        FrontendRegexp: ^services\.wikia\.com
         Sampling: 0.5
-
