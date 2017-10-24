@@ -74,4 +74,4 @@ data:
         Sampling: 1.0
       - Id: liftigniter-metadata
         FrontendRegexp: ^liftigniter-metadata\.prod\.res\.k8s\.wikia\.net
-        Sampling: 1.0
+        Sampling: 0.05

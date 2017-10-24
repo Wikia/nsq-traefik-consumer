@@ -80,7 +80,7 @@ data:
         Sampling: 0.5
       - Id: liftigniter-metadata
         FrontendRegexp: ^liftigniter-metadata\.prod\.sjc\.k8s\.wikia\.net
-        Sampling: 0.5
+        Sampling: 0.05
       - Id: mobile-wiki
         FrontendRegexp: ^mobile-wiki-prod\.prod\.sjc\.k8s\.wikia\.net
         Sampling: 0.5
