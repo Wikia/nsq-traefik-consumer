@@ -78,6 +78,9 @@ data:
       - Id: services-all
         FrontendRegexp: ^services\.wikia\.com
         Sampling: 0.5
+      - Id: liftigniter-metadata
+        FrontendRegexp: ^liftigniter-metadata\.prod\.sjc\.k8s\.wikia\.net
+        Sampling: 0.5
       - Id: mobile-wiki
         FrontendRegexp: ^mobile-wiki-prod\.prod\.sjc\.k8s\.wikia\.net
         Sampling: 0.5
