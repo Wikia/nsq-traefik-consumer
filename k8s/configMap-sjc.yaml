@@ -54,7 +54,7 @@ data:
       - request__referer
       - request__user-agent
     Rules:
-      - Id: helios
+      - Id: helios-internal
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
         Sampling: 0.5
       - Id: helios
@@ -72,10 +72,10 @@ data:
       - Id: services-all
         FrontendRegexp: ^services-k8s\.wikia\.com
         Sampling: 0.5
-      - Id: services-all
+      - Id: services-all-internal
         FrontendRegexp: ^sjc\.k8s\.wikia\.net
         Sampling: 0.5
-      - Id: services-all
+      - Id: services-all-internal
         FrontendRegexp: ^prod\.sjc\.k8s\.wikia\.net
         Sampling: 0.5
       - Id: liftigniter-metadata
