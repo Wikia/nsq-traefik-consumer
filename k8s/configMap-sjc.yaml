@@ -57,17 +57,8 @@ data:
       - Id: helios
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
         Sampling: 0.5
-      - Id: helios-legacy
+      - Id: helios
         FrontendRegexp: ^services\.wikia\.com/auth
-        Sampling: 0.5
-      - Id: helios-dev-legacy
-        FrontendRegexp: ^services\.wikia-dev\.(pl|us)/auth
-        Sampling: 0.5
-      - Id: helios-dev-k8s
-        FrontendRegexp: ^services-k8s\.wikia-dev\.(pl|us)/helios
-        Sampling: 0.5
-      - Id: helios-dev-k8s
-        FrontendRegexp: ^prod\.sjc\.k8s\.wikia\.net/helios
         Sampling: 0.5
       - Id: amp-services
         FrontendRegexp: ^services\.wikia\.com/amp
