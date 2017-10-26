@@ -54,21 +54,24 @@ data:
       - request__referer
       - request__user-agent
     Rules:
-      - Id: helios
+      - Id: helios-internal
         FrontendRegexp: ^[^\.]+\.k8s\.wikia\.net/helios
-        Sampling: 1.0
-      - Id: helios-legacy
-        FrontendRegexp: ^services\.wikia\.com/auth
-        Sampling: 1.0
-      - Id: helios-dev-legacy
-        FrontendRegexp: ^services\.wikia-dev\.(pl|us)/auth
-        Sampling: 1.0
-      - Id: helios-dev-k8s
-        FrontendRegexp: ^services-k8s\.wikia-dev\.(pl|us)/helios
-        Sampling: 1.0
-      - Id: helios-dev-k8s
-        FrontendRegexp: ^prod\.sjc\.k8s\.wikia\.net/helios
-        Sampling: 1.0
+        Sampling: 0.5
+      - Id: helios
+        FrontendRegexp: ^services\.wikia-dev\.us/auth
+        Sampling: 0.5
+      - Id: helios
+        FrontendRegexp: ^services-k8s\.wikia-dev\.us/helios
+        Sampling: 0.5
       - Id: services-all
         FrontendRegexp: ^services\.wikia-dev\.us
-        Sampling: 1.0
+        Sampling: 0.5
+      - Id: services-all
+        FrontendRegexp: ^services-k8s\.wikia-dev\.us
+        Sampling: 0.5
+      - Id: services-all-internal
+        FrontendRegexp: ^sjc-dev\.k8s\.wikia\.net
+        Sampling: 0.5
+      - Id: services-all-internal
+        FrontendRegexp: ^dev\.sjc-dev\.k8s\.wikia\.net
+        Sampling: 0.5
