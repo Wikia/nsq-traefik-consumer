@@ -55,7 +55,7 @@ data:
       - request__user-agent
     Rules:
       - Id: helios
-        FrontendRegexp: ^dev\.sjc-dev\.k8s\.wikia\.net/helios
+        FrontendRegexp: ^dev\.poz-dev\.k8s\.wikia\.net/helios
         Sampling: 0.5
       - Id: helios
         FrontendRegexp: ^services\.wikia-dev\.pl/auth
