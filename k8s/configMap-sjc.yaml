@@ -85,5 +85,5 @@ data:
         FrontendRegexp: ^mobile-wiki-prod\.prod\.sjc\.k8s\.wikia\.net
         Sampling: 0.1
       - Id: discussions-front-end
-        FrontendRegexp: ^discussions-prod\.prod\.sjc\.k8s\.wikia\.net
+        FrontendRegexp: ^discussions-front-end-prod\.prod\.sjc\.k8s\.wikia\.net
         Sampling: 0.5
