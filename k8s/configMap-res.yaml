@@ -76,5 +76,5 @@ data:
         FrontendRegexp: ^liftigniter-metadata\.prod\.res\.k8s\.wikia\.net
         Sampling: 0.05
       - Id: discussions-front-end
-        FrontendRegexp: ^discussions-prod\.prod\.res\.k8s\.wikia\.net
+        FrontendRegexp: ^discussions-front-end-prod\.prod\.res\.k8s\.wikia\.net
         Sampling: 0.5
