@@ -74,7 +74,8 @@ func NewTraefikMetricProcessor(config []common.RulesConfig, fields []string) (*T
 		if err != nil {
 			return nil, err
 		}
-		rule.Filter = func(traefikLog model.LogEntry) bool { return mp.randomGenerator.Float64() < cfg.Sampling }
+		sampling := cfg.Sampling
+		rule.Filter = func(traefikLog model.LogEntry) bool { return mp.randomGenerator.Float64() < sampling }
 		rule.FrontEndRegexp = rxp
 
 		mp.Rules = append(mp.Rules, rule)
