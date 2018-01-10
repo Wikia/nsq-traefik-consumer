@@ -56,19 +56,19 @@ data:
     Rules:
       - Id: helios
         FrontendRegexp: ^prod\.res\.k8s\.wikia\.net/helios
-        Sampling: 0.5
+        Sampling: 0.1
       - Id: helios
         FrontendRegexp: ^services\.wikia\.com/auth
-        Sampling: 0.5
+        Sampling: 0.1
       - Id: services-all
         FrontendRegexp: ^services\.wikia\.com
-        Sampling: 0.5
+        Sampling: 0.2
       - Id: services-all-internal
         FrontendRegexp: ^res\.k8s\.wikia\.net
-        Sampling: 0.5
+        Sampling: 0.1
       - Id: services-all-internal
         FrontendRegexp: ^prod\.res\.k8s\.wikia\.net
-        Sampling: 0.5
+        Sampling: 0.1
       - Id: liftigniter-metadata
         FrontendRegexp: ^liftigniter-metadata\.prod\.res\.k8s\.wikia\.net
         Sampling: 0.05
