@@ -11,9 +11,6 @@ install:
 
 jobs:
   include:
-    - stage: coverage
-      script: make test-cover
-      after_success: gover && $HOME/gopath/bin/goveralls -service=travis-ci -coverprofile=gover.coverprofile;
     - stage: test and check
       go: 1.8
       script: make test
@@ -27,11 +24,13 @@ jobs:
       script: make lint
       script: make vet
     - stage: test and check
-      go: 1.10
+      go: "1.10"
       script: make test
       script: make fmt-check
       script: make lint
       script: make vet
+      script: make test-cover
+      after_success: gover && $HOME/gopath/bin/goveralls -service=travis-ci -coverprofile=gover.coverprofile;
     - stage: test and check
       go: tip
       script: make test
@@ -40,7 +39,7 @@ jobs:
       script: make vet
     - stage: deploy
       before_deploy: CGO_ENABLED=0 goxc -main-dirs-exclude=vendor
-      go: 1.10
+      go: "1.10"
       deploy:
         provider: releases
         api_key:
