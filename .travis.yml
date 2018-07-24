@@ -22,13 +22,10 @@ jobs:
     - stage: coverage
       script: make test-cover
       after_success: gover && $HOME/gopath/bin/goveralls -service=travis-ci -coverprofile=gover.coverprofile;
-    - stage: test
+    - stage: test and check
       script: make test
-    - stage: format check
       script: make fmt-check
-    - stage: lint
       script: make lint
-    - stage: vet
       script: make vet
     - stage: deploy
       before_deploy: CGO_ENABLED=0 goxc -main-dirs-exclude=vendor
@@ -46,10 +43,7 @@ jobs:
           tags: true
           repo: Wikia/nsq-traefik-consumer
 stages:
-  - test
-  - format check
-  - lint
-  - vet
+  - test and check
   - name: deploy
     if: branch = master
 
