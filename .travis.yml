@@ -1,13 +1,5 @@
 sudo: false
 language: go
-matrix:
-  allow_failures:
-  - go: tip
-  include:
-  - go: 1.8
-  - go: 1.9
-  - go: 1.10
-  - go: tip
 
 before_install:
 - go get github.com/mattn/goveralls
@@ -23,11 +15,25 @@ jobs:
       script: make test-cover
       after_success: gover && $HOME/gopath/bin/goveralls -service=travis-ci -coverprofile=gover.coverprofile;
     - stage: test and check
-      go:
-        - 1.8
-        - 1.9
-        - 1.10
-        - tip
+      go: 1.8
+      script: make test
+      script: make fmt-check
+      script: make lint
+      script: make vet
+    - stage: test and check
+      go: 1.9
+      script: make test
+      script: make fmt-check
+      script: make lint
+      script: make vet
+    - stage: test and check
+      go: 1.10
+      script: make test
+      script: make fmt-check
+      script: make lint
+      script: make vet
+    - stage: test and check
+      go: tip
       script: make test
       script: make fmt-check
       script: make lint
