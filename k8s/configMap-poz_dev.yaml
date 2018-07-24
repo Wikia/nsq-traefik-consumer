@@ -16,7 +16,7 @@ data:
     Kubernetes:
       AnnotationKey: wikia_com/keys
     InfluxDB:
-      Address: http://dev.app-metrics-db.service.poz-dev.consul:8086
+      Address: http://dev.app-metrics-db.service.poz.consul:8086
       Database: ingress
       SendInterval: 5s
       Measurement: access_logs
