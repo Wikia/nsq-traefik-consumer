@@ -55,12 +55,12 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 			entry.Log = strings.TrimSpace(entry.Log)
 			value, has := entry.Kubernetes.Annotations[k8sConfig.AnnotationKey]
 			if err != nil {
-				common.Log.WithError(err).Errorf("Error getting annotation")
+				common.Log.WithError(err).WithField("container_name", entry.Kubernetes.ContainerName).Errorf("Error getting annotation")
 				return nil
 			}
 
 			if !has || len(value) == 0 {
-				common.Log.Debug("Skipping message - no proper annotation found")
+				common.Log.WithField("container_name", entry.Kubernetes.ContainerName).Debug("Skipping message - no proper annotation found")
 				return nil
 			}
 
@@ -69,13 +69,19 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 			err = json.Unmarshal([]byte(value), &wikiaConfig)
 
 			if err != nil {
-				common.Log.WithError(err).WithField("value", string(value)).Error("Error unmarshaling pod config")
+				common.Log.WithError(err).WithFields(log.Fields{
+					"value":          string(value),
+					"container_name": entry.Kubernetes.ContainerName,
+				}).Error("Error unmarshaling pod config")
 				return nil
 			}
 
 			influxConfig, has := wikiaConfig["influx_metrics"]
 			if !has {
-				common.Log.WithField("annotation", value).Info("Skipping message - no metrics config found")
+				common.Log.WithFields(log.Fields{
+					"annotation":     value,
+					"container_name": entry.Kubernetes.ContainerName,
+				}).Info("Skipping message - no metrics config found")
 				return nil
 			}
 
@@ -83,7 +89,7 @@ func metricsProcessor(k8sConfig common.KubernetesConfig, measurement string, met
 			err = mapstructure.Decode(influxConfig, &annotationConfig)
 
 			if err != nil {
-				common.Log.WithError(err).Error("Could not unmarshal metrics config")
+				common.Log.WithError(err).WithField("container_name", entry.Kubernetes.ContainerName).Error("Could not unmarshal metrics config")
 				return nil
 			}
 
