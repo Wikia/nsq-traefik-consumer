@@ -2,6 +2,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: nsq-traefik-consumer
+  labels:
+    team: core-platform
   namespace: dev
 data:
   config.yaml: |
