@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: nsq-traefik-consumer
   labels:
-    team: core-platform
+    team: platform
   namespace: prod
 spec:
   replicas: 3
@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: nsq-traefik-consumer
-        team: core-platform
+        team: platform
     spec:
       containers:
       - name: nsq-traefik-consumer
