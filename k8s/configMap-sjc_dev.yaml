@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: nsq-traefik-consumer
   labels:
-    team: core-platform
+    team: platform
   namespace: dev
 data:
   config.yaml: |
