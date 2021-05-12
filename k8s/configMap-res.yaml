@@ -10,8 +10,7 @@ data:
     LogLevel: warning
     Nsq:
       Addresses:
-          - http://nsqlookupd1.res.k8s.wikia.net
-          - http://nsqlookupd2.res.k8s.wikia.net
+          - http://prod.nsqlookupd.service.consul:4161
       Topic: logstash-k8s
       Channel: logstash-k8s-influx-consumers
       MaxInFlight: 200
