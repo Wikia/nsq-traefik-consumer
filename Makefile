@@ -72,8 +72,9 @@ $(GO_GINKGO):
 	go get github.com/onsi/ginkgo/ginkgo
 	go get github.com/onsi/gomega
 
-prepare: $(GO_GLIDE)
-	$(GO_GLIDE) install
+prepare:
+	go mod vendor
+	go get
 
 install:
 	go install ${LDFLAGS}

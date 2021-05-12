@@ -1,14 +1,20 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nsq-traefik-consumer
+  labels:
+    team: platform
   namespace: prod
 spec:
   replicas: 3
+  selector:
+    matchLabels:
+      app: nsq-traefik-consumer
   template:
     metadata:
       labels:
         app: nsq-traefik-consumer
+        team: platform
     spec:
       containers:
       - name: nsq-traefik-consumer
